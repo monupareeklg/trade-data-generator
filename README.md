@@ -38,7 +38,6 @@ const MarketDepthGenerator = require("market-depth-generator");
 const generator = new MarketDepthGenerator({
   redisHost: "127.0.0.1",
   redisPort: 6379,
-  port: 8080,
   middlePrice: 0.00131466, // Base price for market simulation
 });
 
