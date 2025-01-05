@@ -9,6 +9,7 @@
 ---
 
 ## 🌟 Features
+
 - Simulate **Market Depth** with dynamic buy and sell orders.
 - Generate **OHLC Candlesticks** (Open, High, Low, Close) with customizable intervals.
 - Track **Executed Trades** in real-time.
@@ -16,6 +17,7 @@
 - Fully customizable and developer-friendly.
 
 ---
+
 ## 🚀 Installation
 
 Install via npm:
@@ -25,7 +27,9 @@ npm install market-depth-generator
 ```
 
 ## 🛠️ Usage
+
 ### 1. Basic Example
+
 Create a simple WebSocket server that generates and serves market depth and trade data:
 
 ```javascript
@@ -39,27 +43,31 @@ const generator = new MarketDepthGenerator({
 });
 
 (async () => {
-  await generator.init();   // Initialize Redis connection
-  generator.startServer();  // Start WebSocket server
+  await generator.init(); // Initialize Redis connection
+  generator.startServer(); // Start WebSocket server
 })();
 ```
+
 Run the script and connect a WebSocket client to view the live simulation data.
+
 ### 2. Custom Configuration
+
 Customize the generator by passing your own configuration:
 
 ```javascript
 const generator = new MarketDepthGenerator({
   redisHost: "your-redis-host",
-  redisPort: 6380,
-  port: 9090,
-  middlePrice: 1.23456,
-  simulationInterval: 2000,  // Trade simulation interval in ms
-  updateInterval: 5000,     // Update data broadcast interval in ms
+  redisPort: 6379,
+  middlePrice: "<your-price>",
 });
 ```
+
 ---
+
 ## 📡 Output
+
 The WebSocket server broadcasts the following JSON structure:
+
 ```json
 {
   "marketDepth": {
@@ -86,26 +94,34 @@ The WebSocket server broadcasts the following JSON structure:
 ```
 
 ---
+
 ## 📖 Documentation
+
 ### Configuration Options
-| Option      | Type | Default | Description |
-| ----------- | ----------- | ----------- | ----------- |
-| `redisHost`      | String       | `127.0.0.1`      | Redis server hostname.       |
-| `redisPort`      | Number       | `6379`      | Redis server port.|
-| `port`      | Number       | `8080`      | Port for WebSocket server.       |
-| `middlePrice`      | Number       | `305.12`      | Base price for market simulation.       |
-| `simulationInterval`      | Number       | `1000`      | Interval (ms) for simulating trades.       |
-| `updateInterval`      | Number       | `2500`      | Interval (ms) for broadcasting updates.       |
+
+| Option               | Type   | Default     | Description                             |
+| -------------------- | ------ | ----------- | --------------------------------------- |
+| `redisHost`          | String | `127.0.0.1` | Redis server hostname.                  |
+| `redisPort`          | Number | `6379`      | Redis server port.                      |
+| `port`               | Number | `8080`      | Port for WebSocket server.              |
+| `middlePrice`        | Number | `305.12`    | Base price for market simulation.       |
+| `simulationInterval` | Number | `1000`      | Interval (ms) for simulating trades.    |
+| `updateInterval`     | Number | `2500`      | Interval (ms) for broadcasting updates. |
 
 ---
+
 ## 🧪 Testing
+
 Run tests using Jest:
 
 ```
 npm test
 ```
+
 ---
+
 ## 📌 TODOs
+
 - [ ] Add support for multiple symbols.
 - [ ] Extend candlestick intervals beyond 1 minute.
 - [ ] Add more realistic trade simulations.
@@ -113,11 +129,14 @@ npm test
 - [ ] Add support for WebSocket authentication.
 
 ---
+
 ## 👤 Author
--  **Love Pareek**
--  GitHub: [monupareeklg](https://github.com/monupareeklg)
+
+- **Love Pareek**
+- GitHub: [monupareeklg](https://github.com/monupareeklg)
 
 ---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/monupareeklg/trade-data-generator/blob/master/LICENSE) file for details.
