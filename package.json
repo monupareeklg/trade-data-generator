@@ -19,12 +19,12 @@
     "license": "MIT",                
     "repository": {                  
       "type": "git",
-      "url": "https://github.com/your-username/market-depth-generator.git"
+      "url": "https://github.com/monupareeklg/trade-data-generator"
     },
     "bugs": {                        
-      "url": "https://github.com/your-username/market-depth-generator/issues"
+      "url": "https://github.com/monupareeklg/trade-data-generator/issues"
     },
-    "homepage": "https://github.com/your-username/market-depth-generator",
+    "homepage": "https://github.com/monupareeklg/trade-data-generator",
     "dependencies": {                
       "redis": "^4.6.0",
       "ws": "^8.12.0"
