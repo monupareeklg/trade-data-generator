@@ -26,29 +26,19 @@ class MarketDepthGenerator {
     console.log("Redis connected!");
   }
 
-  startServer() {
-    const WebSocket = require("ws");
-    const server = require("http").createServer();
-    const wss = new WebSocket.Server({ server });
-
-    wss.on("connection", (ws) => {
-      console.log("Client connected");
-      setInterval(() => simulateTrade(this), 1000);
-
-      setInterval(() => {
-        const marketDepth = generateMarketDepth(this.config.middlePrice);
-        ws.send(JSON.stringify(this.getUpdatePayload(marketDepth)));
-      }, 2500);
-    });
-
-    server.listen(this.config.port, () => {
-      console.log(`Server running on port ${this.config.port}`);
-    });
+  // Simulate trade and update market data
+  simulateTrade() {
+    simulateTrade(this);
   }
 
-  getUpdatePayload(marketDepth) {
+  // Generate market depth
+  getMarketDepth() {
+    return generateMarketDepth(this.middlePrice);
+  }
+
+  // Get current market stats
+  getMarketStats() {
     return {
-      marketDepth,
       lastPrice: this.middlePrice,
       priceChange: (this.middlePrice - this.config.oneDayBeforePrice).toFixed(
         5
@@ -63,6 +53,11 @@ class MarketDepthGenerator {
       volume: this.volume.toFixed(2),
       executedTrades: this.executedTrades,
     };
+  }
+
+  // Generate candlesticks and update Redis cache
+  generateCandlestick(tradePrice, tradeVolume) {
+    updateCandlestick(this, tradePrice, tradeVolume);
   }
 
   createEmptyCandlestick() {
