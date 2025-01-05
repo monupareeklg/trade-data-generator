@@ -1,0 +1,39 @@
+{
+    "name": "trade-data-generator",
+    "version": "1.0.0",              
+    "description": "A library to simulate market depth, trade data, and OHLC candlestick generation for trading applications.",
+    "main": "src/index.js",          
+    "scripts": {
+      "test": "jest",                
+      "start": "node examples/simpleExample.js"
+    },
+    "keywords": [                     
+      "market-depth",
+      "trading",
+      "simulator",
+      "ohlc",
+      "candlestick",
+      "financial-data"
+    ],
+    "author": "Love Pareek monupareeklg@gmail.com",
+    "license": "MIT",                
+    "repository": {                  
+      "type": "git",
+      "url": "https://github.com/your-username/market-depth-generator.git"
+    },
+    "bugs": {                        
+      "url": "https://github.com/your-username/market-depth-generator/issues"
+    },
+    "homepage": "https://github.com/your-username/market-depth-generator",
+    "dependencies": {                
+      "redis": "^4.6.0",
+      "ws": "^8.12.0"
+    },
+    "devDependencies": {             
+      "jest": "^29.4.0"              
+    },
+    "engines": {                     
+      "node": ">=14.0.0"
+    }
+  }
+  
