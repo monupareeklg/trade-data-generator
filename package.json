@@ -1,6 +1,6 @@
 {
     "name": "trade-data-generator",
-    "version": "1.1.4",              
+    "version": "1.1.5",              
     "description": "A library to simulate market depth, trade data, and OHLC candlestick generation for trading applications.",
     "main": "src/index.js",          
     "scripts": {
