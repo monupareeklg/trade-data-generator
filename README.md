@@ -14,6 +14,8 @@
 - Generate **OHLC Candlesticks** (Open, High, Low, Close) with customizable intervals.
 - Track **Executed Trades** in real-time.
 - Redis support for caching candlestick data.
+- Multi-symbol support for crypto.
+- WebSocket integration for real-time updates.
 - Fully customizable and developer-friendly.
 
 ---
@@ -44,25 +46,37 @@ const app = express();
 const generator = new MarketDepthGenerator({
   redisHost: "127.0.0.1",
   redisPort: 6379,
-  middlePrice: 305.12,
+  symbols: ["BTCUSD", "ETHUSD"], // Add multiple symbols
+  middlePrice: 305.12, // Base price for simulation
 });
 
 (async () => {
   await generator.init(); // Initialize the generator
   setInterval(() => {
-    generator.simulateTrade();
+    generator.simulateTrade("BTCUSDT");
   }, 1000);
 })();
 
-// HTTP API for fetching market data
-app.get("/api/market-depth", (req, res) => {
-  const depth = generator.getMarketDepth();
-  res.json(depth);
+// HTTP API for fetching market depth for a specific symbol
+app.get("/api/market-depth/:symbol", (req, res) => {
+  const symbol = req.params.symbol;
+  try {
+    const depth = generator.getMarketDepth(symbol);
+    res.json(depth);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-app.get("/api/market-stats", (req, res) => {
-  const stats = generator.getMarketStats();
-  res.json(stats);
+// HTTP API for fetching market stats for a specific symbol
+app.get("/api/market-stats/:symbol", (req, res) => {
+  const symbol = req.params.symbol;
+  try {
+    const stats = generator.getMarketStats(symbol);
+    res.json(stats);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 const server = app.listen(PORT, () => {
@@ -76,9 +90,16 @@ wss.on("connection", (ws) => {
   console.log("Client connected");
 
   const sendMarketUpdates = setInterval(() => {
-    const depth = generator.getMarketDepth();
-    const stats = generator.getMarketStats();
-    ws.send(JSON.stringify({ depth, stats }));
+    const updates = {};
+
+    Object.keys(generator.symbols).forEach((symbol) => {
+      updates[symbol] = {
+        depth: generator.getMarketDepth(symbol),
+        stats: generator.getMarketStats(symbol),
+      };
+    });
+
+    ws.send(JSON.stringify(updates));
   }, 2500);
 
   ws.on("close", () => {
@@ -110,26 +131,31 @@ The WebSocket server broadcasts the following JSON structure:
 
 ```json
 {
-  "marketDepth": {
-    "buyOrders": [
-      { "price": "1.23456", "quantity": "10.1234" },
-      { "price": "1.23450", "quantity": "5.4321" }
-    ],
-    "sellOrders": [
-      { "price": "1.23470", "quantity": "8.5678" },
-      { "price": "1.23480", "quantity": "3.2100" }
+  "BTCUSD": {
+    "marketDepth": {
+      "buyOrders": [
+        { "price": "1.23456", "quantity": "10.1234" },
+        { "price": "1.23450", "quantity": "5.4321" }
+      ],
+      "sellOrders": [
+        { "price": "1.23470", "quantity": "8.5678" },
+        { "price": "1.23480", "quantity": "3.2100" }
+      ]
+    },
+    "lastPrice": "1.23456",
+    "priceChange": "0.00010",
+    "percentageChange": "0.81",
+    "highPrice": "1.23480",
+    "lowPrice": "1.23450",
+    "volume": "123.45",
+    "executedTrades": [
+      { "price": "1.23460", "volume": "10.1234", "time": "12:34:56" },
+      { "price": "1.23450", "volume": "5.6789", "time": "12:35:12" }
     ]
   },
-  "lastPrice": "1.23456",
-  "priceChange": "0.00010",
-  "percentageChange": "0.81",
-  "highPrice": "1.23480",
-  "lowPrice": "1.23450",
-  "volume": "123.45",
-  "executedTrades": [
-    { "price": "1.23460", "volume": "10.1234", "time": "12:34:56" },
-    { "price": "1.23450", "volume": "5.6789", "time": "12:35:12" }
-  ]
+  "ETHUSD": {
+    // Similar structure for ETHUSD
+  }
 }
 ```
 
@@ -139,14 +165,14 @@ The WebSocket server broadcasts the following JSON structure:
 
 ### Configuration Options
 
-| Option               | Type   | Default     | Description                             |
-| -------------------- | ------ | ----------- | --------------------------------------- |
-| `redisHost`          | String | `127.0.0.1` | Redis server hostname.                  |
-| `redisPort`          | Number | `6379`      | Redis server port.                      |
-| `port`               | Number | `8080`      | Port for WebSocket server.              |
-| `middlePrice`        | Number | `305.12`    | Base price for market simulation.       |
-| `simulationInterval` | Number | `1000`      | Interval (ms) for simulating trades.    |
-| `updateInterval`     | Number | `2500`      | Interval (ms) for broadcasting updates. |
+| Option               | Type   | Default       | Description                             |
+| -------------------- | ------ | ------------- | --------------------------------------- |
+| `redisHost`          | String | `127.0.0.1`   | Redis server hostname.                  |
+| `redisPort`          | Number | `6379`        | Redis server port.                      |
+| `symbols`            | Array  | `['BTCUSDT']` | List of symbols for simulation.         |
+| `middlePrice`        | Number | `305.12`      | Base price for market simulation.       |
+| `simulationInterval` | Number | `1000`        | Interval (ms) for simulating trades.    |
+| `updateInterval`     | Number | `2500`        | Interval (ms) for broadcasting updates. |
 
 ---
 
@@ -162,11 +188,19 @@ npm test
 
 ## 📌 TODOs
 
-- [ ] Add support for multiple symbols.
+- [x] Add support for multiple symbols.
 - [ ] Extend candlestick intervals beyond 1 minute.
 - [ ] Add more realistic trade simulations.
 - [ ] Implement better test coverage for edge cases.
 - [ ] Add support for WebSocket authentication.
+
+---
+
+## 🌟 What's New
+
+- **Multi-symbol support**: Simulate multiple symbols like `BTCUSD` and `ETHUSD`.
+- **Real-time WebSocket updates**: Get live updates for depth and stats.
+- **24-hour stats tracking**: Includes price change, percentage change, and volume.
 
 ---
 
