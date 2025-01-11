@@ -148,15 +148,19 @@ The WebSocket server broadcasts the following JSON structure:
     "highPrice": "1.23480",
     "lowPrice": "1.23450",
     "volume": "123.45",
-    "executedTrades": [
-      { "price": "1.23460", "volume": "10.1234", "time": "12:34:56" },
-      { "price": "1.23450", "volume": "5.6789", "time": "12:35:12" }
+    "candlestickData": [
+      {
+        "open": "1.23000",
+        "high": "1.24000",
+        "low": "1.23000",
+        "close": "1.23456",
+        "volume": "100.50",
+        "timestamp": "2025-01-10T12:00:00Z"
+      }
     ]
-  },
-  "ETHUSD": {
-    // Similar structure for ETHUSD
   }
 }
+
 ```
 
 ---
@@ -167,8 +171,6 @@ The WebSocket server broadcasts the following JSON structure:
 
 | Option               | Type   | Default       | Description                             |
 | -------------------- | ------ | ------------- | --------------------------------------- |
-| `redisHost`          | String | `127.0.0.1`   | Redis server hostname.                  |
-| `redisPort`          | Number | `6379`        | Redis server port.                      |
 | `symbols`            | Array  | `['BTCUSDT']` | List of symbols for simulation.         |
 | `middlePrice`        | Number | `305.12`      | Base price for market simulation.       |
 | `simulationInterval` | Number | `1000`        | Interval (ms) for simulating trades.    |
@@ -183,6 +185,28 @@ Run tests using Jest:
 ```
 npm test
 ```
+
+---
+
+## 📌 Important Notes
+
+- **Redis Connectivity**:  
+  The library no longer handles Redis connectivity internally. Users are responsible for initializing and managing their own Redis connections. This allows greater flexibility and customization for your specific use cases.
+
+- **Candlestick Data**:  
+  Candlestick (OHLC) data is now directly accessible via `getCandlestickData(symbol)`. You can save this data to Redis or any other database based on your preferences.
+
+- **Custom Configuration**:  
+  The library supports a wide range of configurations to simulate realistic market behavior. Customize parameters like `middlePrice`, `highPriceLimit`, `lowPriceLimit`, and `symbols` to suit your requirements.
+
+- **WebSocket/REST APIs**:  
+  Use WebSocket or REST API endpoints to serve real-time data to clients. The library provides tools to generate depth, trade stats, and candlestick data seamlessly.
+
+- **Data Persistence**:  
+  Persist generated data (like market depth, stats, and candlesticks) in your own storage solutions (e.g., Redis, SQL, or NoSQL databases) for long-term usage and analysis.
+
+- **Interval Management**:  
+  Ensure that the simulation and update intervals are optimized for your use case to avoid excessive resource consumption.
 
 ---
 
