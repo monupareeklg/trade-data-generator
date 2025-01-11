@@ -111,18 +111,6 @@ wss.on("connection", (ws) => {
 
 Run the script and connect a WebSocket client to view the live simulation data.
 
-### 2. Custom Configuration
-
-Customize the generator by passing your own configuration:
-
-```javascript
-const generator = new MarketDepthGenerator({
-  redisHost: "your-redis-host",
-  redisPort: 6379,
-  middlePrice: "<your-price>",
-});
-```
-
 ---
 
 ## 📡 Output
