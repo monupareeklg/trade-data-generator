@@ -1,7 +1,12 @@
 const { tradeUtils } = require("../utils/tradeUtils");
 
 function simulateTrade(context) {
-  const tradePrice = tradeUtils.generateRandomPrice(context.middlePrice);
+  // Generate a new price within the allowed range
+  const tradePrice = tradeUtils.generateControlledPrice(
+    context.middlePrice,
+    context.highPriceLimit,
+    context.lowPriceLimit
+  );
   const tradeVolume = tradeUtils.generateRandomVolume();
 
   context.highPrice = Math.max(context.highPrice, tradePrice);
@@ -17,6 +22,8 @@ function simulateTrade(context) {
   if (context.executedTrades.length > 20) {
     context.executedTrades.pop();
   }
+  // Update the middle price for the next trade
+  context.middlePrice = tradePrice;
 }
 
 function generateMarketDepth(basePrice) {
