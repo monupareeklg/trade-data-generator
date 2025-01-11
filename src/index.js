@@ -1,15 +1,17 @@
 const Redis = require("redis");
 const { simulateTrade, generateMarketDepth } = require("./core/trade");
-const { cacheOHLCData, updateCandlestick } = require("./core/candlestick");
-const { redisHelper } = require("./utils/redisHelper");
+const { updateCandlestick } = require("./core/candlestick");
 const { formatDecimal } = require("./utils/decimalFormatter");
 const config = require("./config");
 
 class MarketDepthGenerator {
   constructor(userConfig = {}) {
-    // Validate the user configuration
-    this.validateConfig(userConfig);
-    this.config = { ...config, ...userConfig };
+    this.config = {
+      ...config,
+      ...userConfig,
+      highPriceLimit: userConfig.highPriceLimit || config.middlePrice * 1.02,
+      lowPriceLimit: userConfig.lowPriceLimit || config.middlePrice * 0.98,
+    };
     this.client = Redis.createClient({
       socket: {
         host: this.config.redisHost,
@@ -26,41 +28,23 @@ class MarketDepthGenerator {
     this.volume = 0;
   }
 
-  async init() {
-    await redisHelper.connect(this.client);
-    console.log("Redis connected!");
-  }
-
   // Initialize multiple symbols
   initSymbols(symbols) {
     symbols.forEach((symbol) => {
       this.symbols[symbol] = {
         middlePrice: this.config.middlePrice,
         highPriceLimit:
-          userConfig.highPriceLimit || this.config.middlePrice * 1.02, // Default to 2% above middlePrice
+          this.config.highPriceLimit || this.config.middlePrice * 1.02, // Default to 2% above middlePrice
         lowPriceLimit:
-          userConfig.lowPriceLimit || this.config.middlePrice * 0.98, // Default to 2% below middlePrice
+          this.config.lowPriceLimit || this.config.middlePrice * 0.98, // Default to 2% below middlePrice
         currentCandlestick: this.createEmptyCandlestick(),
         executedTrades: [],
         highPrice: this.config.middlePrice,
         lowPrice: this.config.middlePrice,
         volume: 0,
+        ohlcData: [], // Initialize ohlcData as an empty array
       };
     });
-  }
-
-  validateConfig(userConfig) {
-    if (userConfig.middlePrice <= 0) {
-      throw new Error("Invalid middlePrice. It must be a positive number.");
-    }
-    if (
-      userConfig.highPriceLimit <= userConfig.middlePrice ||
-      userConfig.lowPriceLimit >= userConfig.middlePrice
-    ) {
-      throw new Error(
-        "Invalid highPriceLimit or lowPriceLimit. Ensure they bound the middlePrice correctly."
-      );
-    }
   }
 
   // Simulate trade for a specific symbol
@@ -69,6 +53,13 @@ class MarketDepthGenerator {
       throw new Error(`Symbol "${symbol}" is not initialized.`);
     }
     simulateTrade(this.symbols[symbol]);
+
+    // Generate and cache the candlestick data
+    this.generateCandlestick(
+      symbol,
+      this.symbols[symbol].middlePrice,
+      Math.random() * 100
+    );
   }
 
   // Simulate trades for all symbols
@@ -113,6 +104,18 @@ class MarketDepthGenerator {
     };
   }
 
+  // Retrieve candlestick data for a specific symbol
+  getCandlestickData(symbol) {
+    if (!this.symbols[symbol]) {
+      throw new Error(`Symbol "${symbol}" is not initialized.`);
+    }
+
+    const data = this.symbols[symbol];
+    return {
+      ohlcData: data.ohlcData || [], // Return cached candlestick data
+    };
+  }
+
   // Generate candlesticks for a specific symbol
   generateCandlestick(symbol, tradePrice, tradeVolume) {
     if (!this.symbols[symbol]) {
@@ -121,8 +124,22 @@ class MarketDepthGenerator {
     updateCandlestick(
       this.symbols[symbol],
       formatDecimal(tradePrice),
-      formatDecimal(tradeVolume)
+      formatDecimal(tradeVolume),
+      this.createEmptyCandlestick.bind(this) // Pass the method explicitly
     );
+    // Store the updated candlestick data
+    const data = this.symbols[symbol];
+    const newCandle = {
+      ...data.currentCandlestick,
+      close: formatDecimal(tradePrice),
+      volume: formatDecimal(tradeVolume),
+    };
+    data.ohlcData.push(newCandle);
+
+    // Limit the candlestick array to 1000 entries
+    if (data.ohlcData.length > 1000) {
+      data.ohlcData.shift();
+    }
   }
 
   createEmptyCandlestick() {

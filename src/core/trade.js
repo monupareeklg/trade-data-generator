@@ -1,4 +1,5 @@
 const { tradeUtils } = require("../utils/tradeUtils");
+const { formatDecimal } = require("../utils/decimalFormatter");
 
 function simulateTrade(context) {
   // Generate a new price within the allowed range
@@ -14,8 +15,8 @@ function simulateTrade(context) {
   context.volume += tradeVolume;
 
   context.executedTrades.unshift({
-    price: tradePrice.toFixed(5),
-    volume: tradeVolume.toFixed(4),
+    price: formatDecimal(tradePrice),
+    volume: formatDecimal(tradeVolume),
     time: new Date().toISOString(),
   });
 
@@ -33,8 +34,8 @@ function generateMarketDepth(basePrice) {
 
     for (let i = 0; i < 10; i++) {
       orders.push({
-        price: (basePrice + i * increment).toFixed(5),
-        volume: (Math.random() * 100).toFixed(4),
+        price: formatDecimal(basePrice + i * increment),
+        volume: formatDecimal(Math.random() * 100),
       });
     }
     return orders;

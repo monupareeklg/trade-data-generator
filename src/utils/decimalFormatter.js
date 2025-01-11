@@ -1,7 +1,6 @@
-// src/utils/decimalFormatter.js
-import BigNumber from "bignumber.js";
+const BigNumber = require("bignumber.js");
 
-export function formatDecimal(value, fixedDecimalPlaces = 5) {
+function formatDecimal(value, fixedDecimalPlaces = 8) {
   if (value === null || value === undefined || isNaN(value) || value === "") {
     return "";
   }
@@ -22,3 +21,5 @@ export function formatDecimal(value, fixedDecimalPlaces = 5) {
 
   return trimmedValue;
 }
+
+module.exports = { formatDecimal };
