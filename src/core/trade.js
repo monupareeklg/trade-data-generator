@@ -1,22 +1,26 @@
 const { tradeUtils } = require("../utils/tradeUtils");
-const { formatDecimal } = require("../utils/decimalFormatter");
 
 function simulateTrade(context) {
+  const { precision, highPriceLimit, lowPriceLimit } = context;
+
   // Generate a new price within the allowed range
-  const tradePrice = tradeUtils.generateControlledPrice(
+  let tradePrice = tradeUtils.generateControlledPrice(
     context.middlePrice,
-    context.highPriceLimit,
-    context.lowPriceLimit
+    highPriceLimit,
+    lowPriceLimit
   );
-  const tradeVolume = tradeUtils.generateRandomVolume();
+  tradePrice = parseFloat(tradePrice.toFixed(precision)); // Apply precision to trade price
+
+  let tradeVolume = tradeUtils.generateRandomVolume();
+  tradeVolume = parseFloat(tradeVolume.toFixed(precision)); // Apply precision to trade volume
 
   context.highPrice = Math.max(context.highPrice, tradePrice);
   context.lowPrice = Math.min(context.lowPrice, tradePrice);
   context.volume += tradeVolume;
 
   context.executedTrades.unshift({
-    price: formatDecimal(tradePrice),
-    volume: formatDecimal(tradeVolume),
+    price: tradePrice,
+    volume: tradeVolume,
     time: new Date().toISOString(),
   });
 
@@ -27,15 +31,18 @@ function simulateTrade(context) {
   context.middlePrice = tradePrice;
 }
 
-function generateMarketDepth(basePrice) {
+function generateMarketDepth(basePrice, stepSize, precision) {
   const generateOrders = (side) => {
     const orders = [];
-    const increment = side === "buy" ? -0.0001 : 0.0001;
+    const increment = side === "buy" ? -stepSize : stepSize;
 
     for (let i = 0; i < 10; i++) {
+      const price = basePrice + i * increment;
+      const volume = Math.random() * 100;
+
       orders.push({
-        price: formatDecimal(basePrice + i * increment),
-        volume: formatDecimal(Math.random() * 100),
+        price: parseFloat(price.toFixed(precision)), // Apply precision
+        volume: parseFloat(volume.toFixed(precision)), // Apply precision
       });
     }
     return orders;
