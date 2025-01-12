@@ -12,8 +12,8 @@
 
 - Simulate **Market Depth** with dynamic buy and sell orders.
 - Generate **OHLC Candlesticks** (Open, High, Low, Close) with customizable intervals.
-- Track **Executed Trades** in real-time.
-- Redis support for caching candlestick data.
+- Track **Executed Trades** in real-time with configurable precision and step sizes.
+- Precision handling for prices and trade volumes per symbol.
 - Multi-symbol support for crypto.
 - WebSocket integration for real-time updates.
 - Fully customizable and developer-friendly.
@@ -44,10 +44,10 @@ const app = express();
 
 // Initialize the MarketDepthGenerator
 const generator = new MarketDepthGenerator({
-  redisHost: "127.0.0.1",
-  redisPort: 6379,
   symbols: ["BTCUSD", "ETHUSD"], // Add multiple symbols
   middlePrice: 305.12, // Base price for simulation
+  precision: { BTCUSD: 2, ETHUSD: 4 }, // Set precision per symbol
+  stepSize: { BTCUSD: 0.01, ETHUSD: 0.0001 }, // Set step size per symbol
 });
 
 (async () => {
@@ -148,7 +148,6 @@ The WebSocket server broadcasts the following JSON structure:
     ]
   }
 }
-
 ```
 
 ---
@@ -157,12 +156,14 @@ The WebSocket server broadcasts the following JSON structure:
 
 ### Configuration Options
 
-| Option               | Type   | Default       | Description                             |
-| -------------------- | ------ | ------------- | --------------------------------------- |
-| `symbols`            | Array  | `['BTCUSDT']` | List of symbols for simulation.         |
-| `middlePrice`        | Number | `305.12`      | Base price for market simulation.       |
-| `simulationInterval` | Number | `1000`        | Interval (ms) for simulating trades.    |
-| `updateInterval`     | Number | `2500`        | Interval (ms) for broadcasting updates. |
+| Option               | Type   | Default       | Description                                       |
+| -------------------- | ------ | ------------- | ------------------------------------------------- |
+| `symbols`            | Array  | `['BTCUSDT']` | List of symbols for simulation.                   |
+| `middlePrice`        | Number | `305.12`      | Base price for market simulation.                 |
+| `precision`          | Object | `{}`          | Set precision per symbol (e.g., `{ BTCUSD: 2 }`). |
+| `stepSize`           | Object | `{}`          | Set price step size per symbol.                   |
+| `simulationInterval` | Number | `1000`        | Interval (ms) for simulating trades.              |
+| `updateInterval`     | Number | `2500`        | Interval (ms) for broadcasting updates.           |
 
 ---
 
@@ -178,29 +179,24 @@ npm test
 
 ## 📌 Important Notes
 
+- **Precision Handling**:  
+  Customize precision for prices and volumes using the `precision` configuration per symbol. This ensures prices and volumes match realistic exchange behavior.
+
+- **Step Size**:  
+  Define `stepSize` per symbol to simulate realistic price jumps for each trade.
+
 - **Redis Connectivity**:  
-  The library no longer handles Redis connectivity internally. Users are responsible for initializing and managing their own Redis connections. This allows greater flexibility and customization for your specific use cases.
+  The library no longer handles Redis connectivity internally. Users are responsible for initializing and managing their own Redis connections.
 
 - **Candlestick Data**:  
   Candlestick (OHLC) data is now directly accessible via `getCandlestickData(symbol)`. You can save this data to Redis or any other database based on your preferences.
-
-- **Custom Configuration**:  
-  The library supports a wide range of configurations to simulate realistic market behavior. Customize parameters like `middlePrice`, `highPriceLimit`, `lowPriceLimit`, and `symbols` to suit your requirements.
-
-- **WebSocket/REST APIs**:  
-  Use WebSocket or REST API endpoints to serve real-time data to clients. The library provides tools to generate depth, trade stats, and candlestick data seamlessly.
-
-- **Data Persistence**:  
-  Persist generated data (like market depth, stats, and candlesticks) in your own storage solutions (e.g., Redis, SQL, or NoSQL databases) for long-term usage and analysis.
-
-- **Interval Management**:  
-  Ensure that the simulation and update intervals are optimized for your use case to avoid excessive resource consumption.
 
 ---
 
 ## 📌 TODOs
 
 - [x] Add support for multiple symbols.
+- [x] Add precision and step size configurations.
 - [ ] Extend candlestick intervals beyond 1 minute.
 - [ ] Add more realistic trade simulations.
 - [ ] Implement better test coverage for edge cases.
@@ -208,11 +204,12 @@ npm test
 
 ---
 
-## 🌟 What's New
+## 🌟 What's New in Version 1.3.7
 
-- **Multi-symbol support**: Simulate multiple symbols like `BTCUSD` and `ETHUSD`.
-- **Real-time WebSocket updates**: Get live updates for depth and stats.
-- **24-hour stats tracking**: Includes price change, percentage change, and volume.
+- Added **precision handling** for prices and volumes.
+- Introduced **step size** configuration for realistic price jumps.
+- Enhanced **executed trades** to respect precision and step sizes.
+- Improved **candlestick data generation** for better accuracy.
 
 ---
 
