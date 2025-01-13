@@ -2,6 +2,7 @@ const { simulateTrade, generateMarketDepth } = require("./core/trade");
 const { updateCandlestick } = require("./core/candlestick");
 const { formatDecimal } = require("./utils/decimalFormatter");
 const config = require("./config");
+const { isMarketOpen } = require("./core/marketStatus");
 
 class MarketDepthGenerator {
   constructor(userConfig = {}) {
@@ -11,9 +12,13 @@ class MarketDepthGenerator {
       highPriceLimit: userConfig.highPriceLimit || config.middlePrice * 1.02,
       lowPriceLimit: userConfig.lowPriceLimit || config.middlePrice * 0.98,
     };
+    this.marketRegion = userConfig.marketRegion || null;
+    this.timezoneOffset =
+      userConfig.timezoneOffset || config.defaultTimezoneOffset;
     this.symbols = {}; // Store data for multiple symbols
     this.initSymbols(userConfig.symbols || ["BTC/USD"]); // Initialize with default symbol
     this.middlePrice = this.config.middlePrice;
+    this.marketType = userConfig.marketType || "crypto"; // Default to crypto
     this.currentCandlestick = this.createEmptyCandlestick();
     this.executedTrades = [];
     this.highPrice = this.config.middlePrice;
@@ -44,11 +49,26 @@ class MarketDepthGenerator {
     });
   }
 
+  checkMarketStatus() {
+    return isMarketOpen(
+      this.marketType,
+      this.marketRegion,
+      this.timezoneOffset
+    );
+  }
+
   // Simulate trade for a specific symbol
   simulateTrade(symbol) {
     if (!this.symbols[symbol]) {
       throw new Error(`Symbol "${symbol}" is not initialized.`);
     }
+
+    // Check if the market is open
+    const isOpen = this.checkMarketStatus();
+    if (!isOpen) {
+      throw new Error(`Market is currently closed for ${this.marketType}.`);
+    }
+
     const symbolData = this.symbols[symbol];
     const {
       stepSize,
@@ -77,6 +97,11 @@ class MarketDepthGenerator {
 
   // Simulate trades for all symbols
   simulateAllTrades() {
+    // Check if the market is open
+    const isOpen = this.checkMarketStatus();
+    if (!isOpen) {
+      throw new Error(`Market is currently closed for ${this.marketType}.`);
+    }
     Object.keys(this.symbols).forEach((symbol) => {
       this.simulateTrade(symbol);
     });
