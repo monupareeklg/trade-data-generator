@@ -14,6 +14,7 @@
 - Generate **OHLC Candlesticks** (Open, High, Low, Close) with customizable intervals.
 - Track **Executed Trades** in real-time with configurable precision and step sizes.
 - Precision handling for prices and trade volumes per symbol.
+- Timezone-specific **Market Hours** for Forex and Equity.
 - Multi-symbol support for crypto.
 - WebSocket integration for real-time updates.
 - Fully customizable and developer-friendly.
@@ -35,7 +36,7 @@ npm install market-depth-generator
 Create a simple WebSocket server that generates and serves market depth and trade data:
 
 ```javascript
-const MarketDepthGenerator = require("market-depth-generator");
+const MarketDepthGenerator = require("trade-data-generator");
 const express = require("express");
 const WebSocket = require("ws");
 
@@ -48,12 +49,18 @@ const generator = new MarketDepthGenerator({
   middlePrice: 305.12, // Base price for simulation
   precision: { BTCUSD: 2, ETHUSD: 4 }, // Set precision per symbol
   stepSize: { BTCUSD: 0.01, ETHUSD: 0.0001 }, // Set step size per symbol
+  marketType: "forex", // Set market type (crypto, forex, equity)
+  marketRegion: "NYSE", // Region-specific market hours (e.g., NYSE, LSE)
+  timezoneOffset: 330, // Timezone offset (e.g., IST = 330 minutes)
 });
 
 (async () => {
-  await generator.init(); // Initialize the generator
   setInterval(() => {
-    generator.simulateTrade("BTCUSDT");
+    try {
+      generator.simulateTrade("BTCUSD");
+    } catch (err) {
+      console.error("Error simulating trade:", err.message);
+    }
   }, 1000);
 })();
 
@@ -162,6 +169,9 @@ The WebSocket server broadcasts the following JSON structure:
 | `middlePrice`        | Number | `305.12`      | Base price for market simulation.                 |
 | `precision`          | Object | `{}`          | Set precision per symbol (e.g., `{ BTCUSD: 2 }`). |
 | `stepSize`           | Object | `{}`          | Set price step size per symbol.                   |
+| `marketType`         | String | `crypto`      | Type of market (`crypto`, `forex`, or `equity`).  |
+| `marketRegion`       | String | `null`        | Region for equity market hours (e.g., `NYSE`).    |
+| `timezoneOffset`     | Number | `0`           | Timezone offset in minutes (e.g., IST = 330).     |
 | `simulationInterval` | Number | `1000`        | Interval (ms) for simulating trades.              |
 | `updateInterval`     | Number | `2500`        | Interval (ms) for broadcasting updates.           |
 
@@ -204,12 +214,15 @@ npm test
 
 ---
 
-## 🌟 What's New in Version 1.3.7
+## 🌟 What's New in Version 1.4.1
 
-- Added **precision handling** for prices and volumes.
-- Introduced **step size** configuration for realistic price jumps.
-- Enhanced **executed trades** to respect precision and step sizes.
-- Improved **candlestick data generation** for better accuracy.
+- **Market Hours Support**:
+  - Integrated time-zone-specific market hours for Forex and Equity markets.
+  - Automatic market status checks based on region and timezone.
+- **Precision and Step Sizes**:
+  - Added per-symbol precision and step size configurations.
+- **Real-time WebSocket Updates**:
+  - Improved candlestick data and market stats streaming.
 
 ---
 
