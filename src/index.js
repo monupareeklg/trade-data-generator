@@ -1,4 +1,3 @@
-const Redis = require("redis");
 const { simulateTrade, generateMarketDepth } = require("./core/trade");
 const { updateCandlestick } = require("./core/candlestick");
 const { formatDecimal } = require("./utils/decimalFormatter");
@@ -12,12 +11,6 @@ class MarketDepthGenerator {
       highPriceLimit: userConfig.highPriceLimit || config.middlePrice * 1.02,
       lowPriceLimit: userConfig.lowPriceLimit || config.middlePrice * 0.98,
     };
-    this.client = Redis.createClient({
-      socket: {
-        host: this.config.redisHost,
-        port: this.config.redisPort,
-      },
-    });
     this.symbols = {}; // Store data for multiple symbols
     this.initSymbols(userConfig.symbols || ["BTC/USD"]); // Initialize with default symbol
     this.middlePrice = this.config.middlePrice;
