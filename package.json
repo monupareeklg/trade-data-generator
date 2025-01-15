@@ -1,6 +1,6 @@
 {
   "name": "trade-data-generator",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "A library to simulate market depth, trade data, and OHLC candlestick generation for trading applications.",
   "main": "src/index.js",
   "scripts": {
@@ -33,7 +33,7 @@
   "bugs": {
     "url": "https://github.com/monupareeklg/trade-data-generator/issues"
   },
-  "homepage": "https://tradesim.dev/",
+  "homepage": "https://tradesim.dev",
   "dependencies": {
     "axios": "^1.7.9",
     "bignumber.js": "^9.1.2",
