@@ -4,7 +4,7 @@ const { formatDecimal } = require("./utils/decimalFormatter");
 const config = require("./config");
 const { isMarketOpen } = require("./core/marketStatus");
 
-class MarketDepthGenerator { 
+class MarketDepthGenerator {
   constructor(userConfig = {}) {
     this.config = {
       ...config,
