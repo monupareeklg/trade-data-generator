@@ -81,7 +81,7 @@ class MarketDepthGenerator {
     // Calculate the new trade price
     let tradePrice = symbolData.middlePrice + stepSize * (Math.random() - 0.5);
     tradePrice = Math.max(Math.min(tradePrice, highPriceLimit), lowPriceLimit); // Bound by limits
-    tradePrice = parseFloat(tradePrice.toFixed(precision)); // Apply precision
+    tradePrice = parseFloat(tradePrice.toFixed(precision));
 
     // Update the middle price
     symbolData.middlePrice = tradePrice;
