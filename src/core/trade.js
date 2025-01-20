@@ -9,7 +9,7 @@ function simulateTrade(context) {
     highPriceLimit,
     lowPriceLimit
   );
-  tradePrice = parseFloat(tradePrice.toFixed(precision)); // Apply precision to trade price
+  tradePrice = parseFloat(tradePrice.toFixed(precision)); 
 
   let tradeVolume = tradeUtils.generateRandomVolume();
   tradeVolume = parseFloat(tradeVolume.toFixed(precision)); // Apply precision to trade volume
