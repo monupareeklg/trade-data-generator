@@ -52,6 +52,7 @@ function generateMarketDepth(basePrice, stepSize, precision) {
     buyOrders: generateOrders("buy"),
     sellOrders: generateOrders("sell"),
   };
+  
 }
 
 module.exports = { simulateTrade, generateMarketDepth };
