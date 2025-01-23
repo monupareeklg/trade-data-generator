@@ -131,6 +131,7 @@ class MarketDepthGenerator {
       );
       order.volume = parseFloat(order.volume).toFixed(
         this.symbols[symbol].precision
+        
       );
     });
 
