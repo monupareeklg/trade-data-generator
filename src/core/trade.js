@@ -22,6 +22,7 @@ function simulateTrade(context) {
     price: tradePrice,
     volume: tradeVolume,
     time: new Date().toISOString(),
+    
   });
 
   if (context.executedTrades.length > 20) {
