@@ -1,221 +1,367 @@
-const { simulateTrade, generateMarketDepth } = require("./core/trade");
-const { updateCandlestick } = require("./core/candlestick");
-const { formatDecimal } = require("./utils/decimalFormatter");
-const config = require("./config");
-const { isMarketOpen } = require("./core/marketStatus");
+/**
+ * index.js
+ *
+ * MarketFeed — main class
+ * Ties together PriceEngine, OrderBook, CandleManager, MarketClock
+ * Emits events that developer pipes into their WebSocket
+ *
+ * Usage:
+ *   const { MarketFeed } = require('trade-data-generator')
+ *
+ *   const feed = new MarketFeed({
+ *     type: 'crypto',
+ *     pairs: [{ symbol: 'BTC/USDT', startPrice: 45000 }]
+ *   })
+ *
+ *   feed.on('tick',   (data) => {})
+ *   feed.on('candle', (data) => {})
+ *   feed.on('depth',  (data) => {})
+ *   feed.on('open',   (info) => {})
+ *   feed.on('closed', (info) => {})
+ *   feed.on('error',  (err)  => {})
+ *
+ *   feed.start()
+ */
 
-class MarketDepthGenerator {
-  constructor(userConfig = {}) {
-    this.config = {
-      ...config,
-      ...userConfig,
-      highPriceLimit: userConfig.highPriceLimit || config.middlePrice * 1.02,
-      lowPriceLimit: userConfig.lowPriceLimit || config.middlePrice * 0.98,
-    };
-    this.marketRegion = userConfig.marketRegion || null;
-    this.timezoneOffset =
-      userConfig.timezoneOffset || config.defaultTimezoneOffset;
-    this.symbols = {}; // Store data for multiple symbols
-    this.initSymbols(userConfig.symbols || ["BTC/USD"]); // Initialize with default symbol
-    this.middlePrice = this.config.middlePrice;
-    this.marketType = userConfig.marketType || "crypto"; // Default to crypto
-    this.currentCandlestick = this.createEmptyCandlestick();
-    this.executedTrades = [];
-    this.highPrice = this.config.middlePrice;
-    this.lowPrice = this.config.middlePrice;
-    this.volume = 0;
-  }
+"use strict";
 
-  // Initialize multiple symbols
-  initSymbols(symbols) {
-    symbols.forEach((symbol) => {
-      this.symbols[symbol] = {
-        middlePrice: this.config.middlePrice,
-        highPriceLimit:
-          this.config.highPriceLimit || this.config.middlePrice * 1.02, // Default to 2% above middlePrice
-        lowPriceLimit:
-          this.config.lowPriceLimit || this.config.middlePrice * 0.98, // Default to 2% below middlePrice
-        precision: this.config.precision?.[symbol] || 2, // Default to 2 decimal places
-        stepSize: this.config.stepSize?.[symbol] || 0.01, // Default step size
-        maxTradeVolume: this.config.maxTradeVolume?.[symbol] || 100, // Default max volume
-        minTradeVolume: this.config.minTradeVolume?.[symbol] || 0.01, // Default min volume
-        currentCandlestick: this.createEmptyCandlestick(),
-        executedTrades: [],
-        highPrice: this.config.middlePrice,
-        lowPrice: this.config.middlePrice,
-        volume: 0,
-        ohlcData: [], // Initialize ohlcData as an empty array
-      };
+const EventEmitter = require("events");
+
+const { PriceEngine } = require("./core/priceEngine");
+const { OrderBook } = require("./core/orderBook");
+const { CandleManager } = require("./core/candleManager");
+const { MarketClock } = require("./core/marketClock");
+const { validateConfig } = require("./utils/validate");
+const { DEFAULTS } = require("./constants/defaults");
+
+class MarketFeed extends EventEmitter {
+  /**
+   * @param {Object} config
+   * @param {string}   config.type             - 'crypto' | 'forex' | 'equity'
+   * @param {Array}    config.pairs            - Array of pair configs
+   * @param {number}   config.interval         - Ms between ticks (default: 1000)
+   * @param {string[]} config.candleIntervals  - e.g. ['1m','5m'] (default: ['1m'])
+   * @param {number}   config.depth            - Order book levels (default: 10)
+   * @param {number}   config.maxCandles       - Max candle history (default: 1000)
+   * @param {Object}   config.marketHours      - Required for equity/forex
+   */
+  constructor(config) {
+    super();
+
+    // Validate before anything else
+    validateConfig(config);
+
+    this._config = config;
+    this._type = config.type;
+    this._interval = config.interval ?? DEFAULTS.interval;
+    this._depth = config.depth ?? DEFAULTS.depth;
+    this._running = false;
+    this._paused = false;
+    this._timer = null;
+
+    // ── Per-symbol engines ─────────────────── //
+    // Map of symbol → { priceEngine, orderBook, candleManager }
+    this._symbols = new Map();
+
+    config.pairs.forEach((pair) => {
+      this._initSymbol(pair);
+    });
+
+    // ── Market clock ───────────────────────── //
+    this._clock = new MarketClock({
+      type: config.type,
+      marketHours: config.marketHours ?? DEFAULTS.marketHours[config.type],
+      onOpen: (info) => this.emit("open", info),
+      onClose: (info) => this.emit("closed", info),
     });
   }
 
-  checkMarketStatus() {
-    return isMarketOpen(
-      this.marketType,
-      this.marketRegion,
-      this.timezoneOffset
-    );
+  // ── Public API ─────────────────────────────── //
+
+  /**
+   * Start the feed
+   * Begins emitting ticks at configured interval
+   */
+  start() {
+    if (this._running) {
+      console.warn("[MarketFeed] Already running. Call stop() first.");
+      return this;
+    }
+
+    this._running = true;
+    this._paused = false;
+
+    // Start market clock
+    this._clock.start();
+
+    // Start tick loop
+    this._timer = setInterval(() => {
+      this._tick();
+    }, this._interval);
+
+    // Emit first tick immediately
+    this._tick();
+
+    return this;
   }
 
-  // Simulate trade for a specific symbol
-  simulateTrade(symbol) {
-    if (!this.symbols[symbol]) {
-      throw new Error(`Symbol "${symbol}" is not initialized.`);
+  /**
+   * Stop the feed completely
+   */
+  stop() {
+    if (!this._running) return this;
+
+    this._running = false;
+    this._paused = false;
+
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
     }
 
-    // Check if the market is open
-    const isOpen = this.checkMarketStatus();
-    if (!isOpen) {
-      throw new Error(`Market is currently closed for ${this.marketType}.`);
-    }
+    this._clock.stop();
 
-    const symbolData = this.symbols[symbol];
-    const {
-      stepSize,
-      maxTradeVolume,
-      minTradeVolume,
-      precision,
-      highPriceLimit,
-      lowPriceLimit,
-    } = symbolData;
-    // Calculate the new trade price
-    let tradePrice = symbolData.middlePrice + stepSize * (Math.random() - 0.5);
-    tradePrice = Math.max(Math.min(tradePrice, highPriceLimit), lowPriceLimit); // Bound by limits
-    tradePrice = parseFloat(tradePrice.toFixed(precision));
-
-    // Update the middle price
-    symbolData.middlePrice = tradePrice;
-
-    let tradeVolume = Math.random() * maxTradeVolume;
-    tradeVolume = Math.max(tradeVolume, minTradeVolume);
-    tradeVolume = parseFloat(tradeVolume.toFixed(precision));
-    simulateTrade(symbolData);
-
-    // Update candlestick and OHLC data
-    this.generateCandlestick(symbol, tradePrice, tradeVolume);
+    return this;
   }
 
-  // Simulate trades for all symbols
-  simulateAllTrades() {
-    // Check if the market is open
-    const isOpen = this.checkMarketStatus();
-    if (!isOpen) {
-      throw new Error(`Market is currently closed for ${this.marketType}.`);
+  /**
+   * Pause ticks without stopping the clock
+   */
+  pause() {
+    if (!this._running) {
+      console.warn("[MarketFeed] Not running. Call start() first.");
+      return this;
     }
-    Object.keys(this.symbols).forEach((symbol) => {
-      this.simulateTrade(symbol);
-    });
+    this._paused = true;
+    return this;
   }
 
-  // Generate market depth for a specific symbol
-  getMarketDepth(symbol) {
-    if (!this.symbols[symbol]) {
-      throw new Error(`Symbol "${symbol}" is not initialized.`);
+  /**
+   * Resume after pause
+   */
+  resume() {
+    if (!this._running) {
+      console.warn("[MarketFeed] Not running. Call start() first.");
+      return this;
     }
-    const { middlePrice, stepSize, precision } = this.symbols[symbol];
-
-    const depth = generateMarketDepth(middlePrice, stepSize, precision);
-    // Apply precision to market depth
-    depth.buyOrders.forEach((order) => {
-      order.price = parseFloat(order.price).toFixed(
-        this.symbols[symbol].precision
-      );
-      order.volume = parseFloat(order.volume).toFixed(
-        this.symbols[symbol].precision
-      );
-    });
-
-    depth.sellOrders.forEach((order) => {
-      order.price = parseFloat(order.price).toFixed(
-        this.symbols[symbol].precision
-      );
-      order.volume = parseFloat(order.volume).toFixed(
-        this.symbols[symbol].precision
-        
-      );
-    });
-
-    return depth;
+    this._paused = false;
+    return this;
   }
 
-  // Get stats for a specific symbol
-  getMarketStats(symbol) {
-    if (!this.symbols[symbol]) {
-      throw new Error(`Symbol "${symbol}" is not initialized.`);
+  /**
+   * Get current state for a symbol
+   * @param {string} symbol - e.g. 'BTC/USDT'
+   * @returns {Object|null}
+   */
+  getState(symbol) {
+    const entry = this._symbols.get(symbol);
+    if (!entry) {
+      console.warn(`[MarketFeed] Unknown symbol "${symbol}"`);
+      return null;
     }
-    const data = this.symbols[symbol];
-    const { precision } = data; // Use precision specific to the symbol
+
+    const priceState = entry.priceEngine.getState();
+    const depth = entry.orderBook.getSnapshot();
+    const candles = entry.candleManager.getAllHistory();
+
     return {
-      lastPrice: formatDecimal(data.middlePrice, precision),
-      priceChange: formatDecimal(
-        data.middlePrice - this.config.oneDayBeforePrice,
-        precision
-      ),
-      percentageChange: formatDecimal(
-        ((data.middlePrice - this.config.oneDayBeforePrice) /
-          this.config.oneDayBeforePrice) *
-          100,
-        precision
-      ),
-      highPrice: formatDecimal(data.highPrice, precision),
-      lowPrice: formatDecimal(data.lowPrice, precision),
-      volume: formatDecimal(data.volume, precision),
-      executedTrades: data.executedTrades.map((trade) => ({
-        ...trade,
-        price: formatDecimal(trade.price, precision),
-        volume: formatDecimal(trade.volume, 2),
-      })),
+      symbol,
+      type: this._type,
+      ...priceState,
+      depth,
+      candles,
+      marketOpen: this._clock.isOpen(),
     };
   }
 
-  // Retrieve candlestick data for a specific symbol
-  getCandlestickData(symbol) {
-    if (!this.symbols[symbol]) {
-      throw new Error(`Symbol "${symbol}" is not initialized.`);
+  /**
+   * Get candle history for a symbol and interval
+   * @param {string} symbol
+   * @param {string} interval - e.g. '1m'
+   * @param {number} limit    - max candles to return
+   * @returns {Array}
+   */
+  getCandles(symbol, interval, limit) {
+    const entry = this._symbols.get(symbol);
+    if (!entry) {
+      console.warn(`[MarketFeed] Unknown symbol "${symbol}"`);
+      return [];
     }
-
-    const data = this.symbols[symbol];
-    return {
-      ohlcData: data.ohlcData || [], // Return cached candlestick data
-    };
+    return entry.candleManager.getHistory(interval, limit);
   }
 
-  // Generate candlesticks for a specific symbol
-  generateCandlestick(symbol, tradePrice, tradeVolume) {
-    if (!this.symbols[symbol]) {
-      throw new Error(`Symbol "${symbol}" is not initialized.`);
+  /**
+   * Reset a symbol back to its start price
+   * @param {string} symbol
+   */
+  reset(symbol) {
+    const entry = this._symbols.get(symbol);
+    if (!entry) {
+      console.warn(`[MarketFeed] Unknown symbol "${symbol}"`);
+      return this;
     }
-    updateCandlestick(
-      this.symbols[symbol],
-      formatDecimal(tradePrice),
-      formatDecimal(tradeVolume),
-      this.createEmptyCandlestick.bind(this) // Pass the method explicitly
-    );
-    // Store the updated candlestick data
-    const data = this.symbols[symbol];
-    const newCandle = {
-      ...data.currentCandlestick,
-      close: formatDecimal(tradePrice),
-      volume: formatDecimal(tradeVolume),
-    };
-    data.ohlcData.push(newCandle);
-
-    // Limit the candlestick array to 1000 entries
-    if (data.ohlcData.length > 1000) {
-      data.ohlcData.shift();
-    }
+    entry.priceEngine.reset();
+    entry.candleManager.reset();
+    return this;
   }
 
-  createEmptyCandlestick() {
-    return {
-      open: null,
-      high: -Infinity,
-      low: Infinity,
-      close: null,
-      volume: 0,
-      timestamp: Date.now(),
-    };
+  /**
+   * Reset all symbols
+   */
+  resetAll() {
+    this._symbols.forEach((entry) => {
+      entry.priceEngine.reset();
+      entry.candleManager.reset();
+    });
+    return this;
+  }
+
+  /**
+   * Get list of all symbols
+   * @returns {string[]}
+   */
+  getSymbols() {
+    return Array.from(this._symbols.keys());
+  }
+
+  /**
+   * Is the feed currently running
+   * @returns {boolean}
+   */
+  isRunning() {
+    return this._running && !this._paused;
+  }
+
+  /**
+   * Get market status
+   * @returns {Object}
+   */
+  getMarketStatus() {
+    return this._clock.getStatus();
+  }
+
+  // ── Private ────────────────────────────────── //
+
+  /**
+   * Initialize engines for one symbol
+   * @param {Object} pair - pair config
+   */
+  _initSymbol(pair) {
+    const defaults = DEFAULTS.pair;
+
+    const priceEngine = new PriceEngine({
+      startPrice: pair.startPrice,
+      volatility: pair.volatility ?? defaults.volatility,
+      trend: pair.trend ?? defaults.trend,
+      precision: pair.precision ?? defaults.precision,
+      tickSize: pair.tickSize ?? defaults.tickSize,
+      minPrice: pair.minPrice,
+      maxPrice: pair.maxPrice,
+      volume: pair.volume ?? defaults.volume,
+    });
+
+    const orderBook = new OrderBook({
+      depth: this._depth,
+      tickSize: pair.tickSize ?? defaults.tickSize,
+      precision: pair.precision ?? defaults.precision,
+      volume: pair.volume ?? defaults.volume,
+      spreadPct: pair.spreadPct ?? defaults.spreadPct,
+    });
+
+    const candleManager = new CandleManager({
+      intervals: this._config.candleIntervals ?? DEFAULTS.candleIntervals,
+      precision: pair.precision ?? defaults.precision,
+      maxCandles: this._config.maxCandles ?? DEFAULTS.maxCandles,
+      onClose: (candle) => {
+        this.emit("candle", {
+          symbol,
+          type: this._type,
+          ...candle,
+        });
+      },
+    });
+
+    const symbol = pair.symbol;
+
+    this._symbols.set(symbol, {
+      priceEngine,
+      orderBook,
+      candleManager,
+      config: pair,
+    });
+  }
+
+  /**
+   * Main tick — called on every interval
+   * Generates price, depth, updates candles
+   * Emits events to developer
+   */
+  _tick() {
+    // Skip if paused
+    if (this._paused) return;
+
+    // Skip if market closed — but still emit closed event
+    if (!this._clock.isOpen()) {
+      this.emit("closed", this._clock.getStatus());
+      return;
+    }
+
+    const timestamp = Date.now();
+
+    // Tick every symbol
+    this._symbols.forEach((entry, symbol) => {
+      try {
+        // 1. Advance price
+        const tick = entry.priceEngine.next();
+
+        // 2. Update order book
+        const depth = entry.orderBook.update(tick.price);
+
+        // 3. Update candles
+        const { closed } = entry.candleManager.tick(
+          tick.price,
+          tick.volume,
+          timestamp,
+        );
+
+        // 4. Emit tick event
+        this.emit("tick", {
+          symbol,
+          type: this._type,
+          timestamp,
+          price: tick.price,
+          bid: tick.bid,
+          ask: tick.ask,
+          spread: tick.spread,
+          volume: tick.volume,
+          change: tick.change,
+          changePct: tick.changePct,
+          high24h: tick.high24h,
+          low24h: tick.low24h,
+          open24h: tick.open24h,
+          previous: tick.previous,
+        });
+
+        // 5. Emit depth event
+        this.emit("depth", {
+          symbol,
+          type: this._type,
+          timestamp,
+          bids: depth.bids,
+          asks: depth.asks,
+        });
+
+        // 6. Closed candles already emitted via onClose callback
+        // in candleManager — nothing to do here
+      } catch (err) {
+        this.emit("error", {
+          symbol,
+          error: err.message,
+          stack: err.stack,
+        });
+      }
+    });
   }
 }
 
-module.exports = MarketDepthGenerator;
+module.exports = { MarketFeed };

@@ -3,260 +3,363 @@
 [![npm version](https://img.shields.io/npm/v/trade-data-generator.svg)](https://www.npmjs.com/package/trade-data-generator)
 [![license](https://img.shields.io/npm/l/trade-data-generator.svg)](https://github.com/monupareeklg/trade-data-generator/blob/master/LICENSE)
 [![downloads](https://img.shields.io/npm/dm/trade-data-generator.svg)](https://www.npmjs.com/package/trade-data-generator)
+[![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](https://www.npmjs.com/package/trade-data-generator)
 
-**Market Depth Generator** is a lightweight library for simulating market depth, trade data, and OHLC candlesticks. Designed for trading platforms and financial applications, it generates realistic trading data with customizable configurations.
-
----
-
-## 🌟 Features
-
-- Simulate **Market Depth** with dynamic buy and sell orders.
-- Generate **OHLC Candlesticks** (Open, High, Low, Close) with customizable intervals.
-- Track **Executed Trades** in real-time with configurable precision and step sizes.
-- Precision handling for prices and trade volumes per symbol.
-- Timezone-specific **Market Hours** for Forex and Equity.
-- Multi-symbol support for crypto.
-- WebSocket integration for real-time updates.
-- Fully customizable and developer-friendly.
+Generate realistic real-time market data for trading UIs — equity, forex and crypto.  
+Emits price ticks, order book depth, OHLCV candles and market status events via **EventEmitter**.  
+Wire it into your own WebSocket server in minutes.
 
 ---
 
-## 🚀 Installation
+## Why this exists
 
-Install via npm:
+Building a trading UI requires live market data. Real data feeds (Bloomberg, Refinitiv) cost thousands per month. Free APIs have rate limits and no order book depth.
+
+`trade-data-generator` gives you realistic synthetic data for **equity, forex and crypto** so you can build and test your trading UI without any external dependencies or API keys.
+
+---
+
+## Features
+
+- **Realistic price simulation** — random walk with mean reversion, volatility and trend bias
+- **Accurate order book** — bid always below ask, volume tapers with depth
+- **OHLCV candlesticks** — multiple intervals simultaneously (`1m`, `5m`, `1h`, etc.)
+- **Market hours** — equity and forex respect open/close times and timezones
+- **Crypto always open** — no market hours needed
+- **EventEmitter API** — wire into any WebSocket (Socket.io, ws, Pusher, Ably)
+- **Zero dependencies** — nothing to install beyond the library itself
+- **Multi-symbol** — run dozens of pairs simultaneously
+- **Full controls** — start, stop, pause, resume, reset per symbol
+
+---
+
+## Installation
 
 ```bash
-npm install market-depth-generator
+npm install trade-data-generator
 ```
 
-## 🛠️ Usage
+---
 
-### 1. Basic Example
-
-Create a simple WebSocket server that generates and serves market depth and trade data:
+## Quick Start
 
 ```javascript
-const MarketDepthGenerator = require("trade-data-generator");
-const express = require("express");
-const WebSocket = require("ws");
+const { MarketFeed } = require('trade-data-generator')
 
-const PORT = 8080;
-const app = express();
+const feed = new MarketFeed({
+  type:  'crypto',
+  pairs: [
+    { symbol: 'BTC/USDT', startPrice: 45000, volatility: 0.004 },
+    { symbol: 'ETH/USDT', startPrice: 2800,  volatility: 0.005 },
+  ]
+})
 
-// Initialize the MarketDepthGenerator
-const generator = new MarketDepthGenerator({
-  symbols: ["BTCUSD", "ETHUSD"], // Add multiple symbols
-  middlePrice: 305.12, // Base price for simulation
-  precision: { BTCUSD: 2, ETHUSD: 4 }, // Set precision per symbol
-  stepSize: { BTCUSD: 0.01, ETHUSD: 0.0001 }, // Set step size per symbol
-  marketType: "forex", // Set market type (crypto, forex, equity)
-  marketRegion: "NYSE", // Region-specific market hours (e.g., NYSE, LSE)
-  timezoneOffset: 330, // Timezone offset (e.g., IST = 330 minutes)
-});
+feed.on('tick',  (data) => console.log(data))
+feed.on('candle',(data) => console.log(data))
+feed.on('depth', (data) => console.log(data))
 
-(async () => {
-  setInterval(() => {
-    try {
-      generator.simulateTrade("BTCUSD");
-    } catch (err) {
-      console.error("Error simulating trade:", err.message);
-    }
-  }, 1000);
-})();
-
-// HTTP API for fetching market depth for a specific symbol
-app.get("/api/market-depth/:symbol", (req, res) => {
-  const symbol = req.params.symbol;
-  try {
-    const depth = generator.getMarketDepth(symbol);
-    res.json(depth);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// HTTP API for fetching market stats for a specific symbol
-app.get("/api/market-stats/:symbol", (req, res) => {
-  const symbol = req.params.symbol;
-  try {
-    const stats = generator.getMarketStats(symbol);
-    res.json(stats);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
-// WebSocket server for real-time updates
-const wss = new WebSocket.Server({ server });
-
-wss.on("connection", (ws) => {
-  console.log("Client connected");
-
-  const sendMarketUpdates = setInterval(() => {
-    const updates = {};
-
-    Object.keys(generator.symbols).forEach((symbol) => {
-      updates[symbol] = {
-        depth: generator.getMarketDepth(symbol),
-        stats: generator.getMarketStats(symbol),
-      };
-    });
-
-    ws.send(JSON.stringify(updates));
-  }, 2500);
-
-  ws.on("close", () => {
-    clearInterval(sendMarketUpdates);
-    console.log("Client disconnected");
-  });
-});
-```
-
-Run the script and connect a WebSocket client to view the live simulation data.
-
----
-
-## 📡 Output
-
-The WebSocket server broadcasts the following JSON structure:
-
-```json
-{
-  "BTCUSD": {
-    "marketDepth": {
-      "buyOrders": [
-        { "price": "1.23456", "quantity": "10.1234" },
-        { "price": "1.23450", "quantity": "5.4321" }
-      ],
-      "sellOrders": [
-        { "price": "1.23470", "quantity": "8.5678" },
-        { "price": "1.23480", "quantity": "3.2100" }
-      ]
-    },
-    "lastPrice": "1.23456",
-    "priceChange": "0.00010",
-    "percentageChange": "0.81",
-    "highPrice": "1.23480",
-    "lowPrice": "1.23450",
-    "volume": "123.45",
-    "candlestickData": [
-      {
-        "open": "1.23000",
-        "high": "1.24000",
-        "low": "1.23000",
-        "close": "1.23456",
-        "volume": "100.50",
-        "timestamp": "2025-01-10T12:00:00Z"
-      }
-    ]
-  }
-}
+feed.start()
 ```
 
 ---
 
-## 📖 Documentation
+## WebSocket Integration
 
-### Configuration Options
+The library emits events — you own the WebSocket server.  
+This works with **any** WebSocket library.
 
-| Option               | Type   | Default       | Description                                       |
-| -------------------- | ------ | ------------- | ------------------------------------------------- |
-| `symbols`            | Array  | `['BTCUSDT']` | List of symbols for simulation.                   |
-| `middlePrice`        | Number | `305.12`      | Base price for market simulation.                 |
-| `precision`          | Object | `{}`          | Set precision per symbol (e.g., `{ BTCUSD: 2 }`). |
-| `stepSize`           | Object | `{}`          | Set price step size per symbol.                   |
-| `marketType`         | String | `crypto`      | Type of market (`crypto`, `forex`, or `equity`).  |
-| `marketRegion`       | String | `null`        | Region for equity market hours (e.g., `NYSE`).    |
-| `timezoneOffset`     | Number | `0`           | Timezone offset in minutes (e.g., IST = 330).     |
-| `simulationInterval` | Number | `1000`        | Interval (ms) for simulating trades.              |
-| `updateInterval`     | Number | `2500`        | Interval (ms) for broadcasting updates.           |
+```javascript
+const { MarketFeed } = require('trade-data-generator')
+const { Server }     = require('socket.io')
+const http           = require('http')
 
----
+const server = http.createServer()
+const io     = new Server(server, { cors: { origin: '*' } })
 
-## 🧪 Testing
+const feed = new MarketFeed({
+  type:            'equity',
+  interval:        1000,
+  candleIntervals: ['1m', '5m'],
+  marketHours: {
+    open:     '09:30',
+    close:    '16:00',
+    timezone: 'America/New_York',
+  },
+  pairs: [
+    { symbol: 'AAPL',  startPrice: 175.50, volatility: 0.002, precision: 2 },
+    { symbol: 'GOOGL', startPrice: 142.30, volatility: 0.003, precision: 2 },
+  ]
+})
 
-Run tests using Jest:
+// Library events → broadcast to clients
+feed.on('tick',   (data) => io.to(data.symbol).emit('ticker_update',    data))
+feed.on('candle', (data) => io.to(data.symbol).emit('candle_update',    data))
+feed.on('depth',  (data) => io.to(data.symbol).emit('orderbook_update', data))
+feed.on('open',   (info) => io.emit('market_open',   info))
+feed.on('closed', (info) => io.emit('market_closed', info))
 
+// Client subscription
+io.on('connection', (socket) => {
+  socket.on('subscribe', ({ symbol }) => {
+    socket.join(symbol)
+    socket.emit('snapshot', feed.getState(symbol))
+  })
+  socket.on('unsubscribe', ({ symbol }) => {
+    socket.leave(symbol)
+  })
+})
+
+feed.start()
+server.listen(3001)
 ```
-npm test
+
+---
+
+## Market Types
+
+### Crypto — always open
+
+```javascript
+const feed = new MarketFeed({
+  type:  'crypto',
+  pairs: [
+    { symbol: 'BTC/USDT', startPrice: 45000, volatility: 0.004, precision: 2 },
+    { symbol: 'ETH/USDT', startPrice: 2800,  volatility: 0.005, precision: 2 },
+    { symbol: 'SOL/USDT', startPrice: 120,   volatility: 0.008, precision: 3 },
+  ]
+})
+```
+
+### Equity — respects market hours
+
+```javascript
+const feed = new MarketFeed({
+  type: 'equity',
+  marketHours: {
+    open:     '09:30',
+    close:    '16:00',
+    timezone: 'America/New_York',
+    days:     [1, 2, 3, 4, 5],   // Mon–Fri
+  },
+  pairs: [
+    { symbol: 'AAPL',  startPrice: 175.50, volatility: 0.002, precision: 2 },
+    { symbol: 'GOOGL', startPrice: 142.30, volatility: 0.003, precision: 2 },
+  ]
+})
+```
+
+### Forex — pip precision
+
+```javascript
+const feed = new MarketFeed({
+  type: 'forex',
+  marketHours: {
+    open:     '00:00',
+    close:    '23:59',
+    timezone: 'UTC',
+    days:     [1, 2, 3, 4, 5],
+  },
+  pairs: [
+    { symbol: 'EUR/USD', startPrice: 1.08450, volatility: 0.0003, precision: 5, tickSize: 0.00001 },
+    { symbol: 'GBP/USD', startPrice: 1.26780, volatility: 0.0004, precision: 5, tickSize: 0.00001 },
+    { symbol: 'USD/JPY', startPrice: 149.850, volatility: 0.0002, precision: 3, tickSize: 0.001   },
+  ]
+})
 ```
 
 ---
 
-## 📌 Important Notes
+## Events
 
-- **Precision Handling**:  
-  Customize precision for prices and volumes using the `precision` configuration per symbol. This ensures prices and volumes match realistic exchange behavior.
+```javascript
+// Price tick — emitted every interval for every symbol
+feed.on('tick', (data) => {
+  // {
+  //   symbol:    'BTC/USDT',
+  //   type:      'crypto',
+  //   timestamp:  1714900000000,
+  //   price:      45016.14,
+  //   bid:        44993.63,
+  //   ask:        45038.65,
+  //   spread:     45.02,
+  //   volume:     4,
+  //   change:     +16.14,
+  //   changePct:  +0.04,
+  //   high24h:    45200.00,
+  //   low24h:     44800.00,
+  //   open24h:    45000.00,
+  //   previous:   45000.00,
+  // }
+})
 
-- **Step Size**:  
-  Define `stepSize` per symbol to simulate realistic price jumps for each trade.
+// Completed OHLCV candle
+feed.on('candle', (data) => {
+  // {
+  //   symbol:    'BTC/USDT',
+  //   interval:  '1m',
+  //   openTime:  1714900000000,
+  //   closeTime: 1714900060000,
+  //   open:      45000.00,
+  //   high:      45200.00,
+  //   low:       44800.00,
+  //   close:     45016.14,
+  //   volume:    284,
+  //   ticks:     60,
+  //   closed:    true,
+  // }
+})
 
-- **Redis Connectivity**:  
-  The library no longer handles Redis connectivity internally. Users are responsible for initializing and managing their own Redis connections.
+// Order book snapshot
+feed.on('depth', (data) => {
+  // {
+  //   symbol:    'BTC/USDT',
+  //   timestamp:  1714900000000,
+  //   bids: [
+  //     { price: 44993.63, volume: 5, side: 'bid', level: 0 },
+  //     { price: 44993.62, volume: 3, side: 'bid', level: 1 },
+  //     ...10 levels
+  //   ],
+  //   asks: [
+  //     { price: 45038.65, volume: 4, side: 'ask', level: 0 },
+  //     ...10 levels
+  //   ]
+  // }
+})
 
-- **Candlestick Data**:  
-  Candlestick (OHLC) data is now directly accessible via `getCandlestickData(symbol)`. You can save this data to Redis or any other database based on your preferences.
+// Market opened (equity/forex only)
+feed.on('open', (info) => {
+  // { type: 'equity', time: '09:30', timezone: 'America/New_York', timestamp: ... }
+})
+
+// Market closed (equity/forex only)
+feed.on('closed', (info) => {
+  // { type: 'equity', time: '16:00', timezone: 'America/New_York', timestamp: ... }
+})
+
+// Error on a symbol
+feed.on('error', (err) => {
+  // { symbol: 'BTC/USDT', error: 'message', stack: '...' }
+})
+```
 
 ---
 
-## 📌 TODOs
+## Configuration
 
-- [x] Add support for multiple symbols.
-- [x] Add precision and step size configurations.
-- [ ] Extend candlestick intervals beyond 1 minute.
-- [ ] Add more realistic trade simulations.
-- [ ] Implement better test coverage for edge cases.
-- [ ] Add support for WebSocket authentication.
+### MarketFeed options
 
----
+| Option            | Type       | Default  | Description                                      |
+|-------------------|------------|----------|--------------------------------------------------|
+| `type`            | `string`   | required | `'crypto'` \| `'forex'` \| `'equity'`           |
+| `pairs`           | `Array`    | required | Array of pair configs (see below)                |
+| `interval`        | `number`   | `1000`   | Milliseconds between ticks                       |
+| `candleIntervals` | `string[]` | `['1m']` | Candle intervals to track                        |
+| `depth`           | `number`   | `10`     | Order book levels each side                      |
+| `maxCandles`      | `number`   | `1000`   | Max candle history per interval                  |
+| `marketHours`     | `Object`   | —        | Required for `equity` and `forex`                |
 
-## 🌟 What's New in Version 1.4.1
+### marketHours options
 
-- **Market Hours Support**:
-  - Integrated time-zone-specific market hours for Forex and Equity markets.
-  - Automatic market status checks based on region and timezone.
-- **Precision and Step Sizes**:
-  - Added per-symbol precision and step size configurations.
-- **Real-time WebSocket Updates**:
-  - Improved candlestick data and market stats streaming.
+| Option     | Type       | Default        | Description                          |
+|------------|------------|----------------|--------------------------------------|
+| `open`     | `string`   | required       | Opening time e.g. `'09:30'`         |
+| `close`    | `string`   | required       | Closing time e.g. `'16:00'`         |
+| `timezone` | `string`   | required       | IANA timezone e.g. `'America/New_York'` |
+| `days`     | `number[]` | `[1,2,3,4,5]` | Trading days (0=Sun, 6=Sat)         |
 
----
+### Pair options
 
-## 👤 Author
+| Option       | Type     | Default   | Description                                     |
+|--------------|----------|-----------|-------------------------------------------------|
+| `symbol`     | `string` | required  | e.g. `'BTC/USDT'`                              |
+| `startPrice` | `number` | required  | Initial price                                   |
+| `volatility` | `number` | `0.002`   | Max % move per tick (0.002 = 0.2%)             |
+| `trend`      | `number` | `0`       | Drift per tick (0.0001 up, -0.0001 down)       |
+| `precision`  | `number` | `2`       | Decimal places                                  |
+| `tickSize`   | `number` | `0.01`    | Minimum price increment                         |
+| `spreadPct`  | `number` | `0.001`   | Bid/ask spread as % of price                   |
+| `volume`     | `Object` | see below | `{ min: 100, max: 10000 }`                     |
+| `minPrice`   | `number` | —         | Price floor (default: 50% of startPrice)        |
+| `maxPrice`   | `number` | —         | Price ceiling (default: 150% of startPrice)     |
 
-- **Love Pareek**
-- GitHub: [monupareeklg](https://github.com/monupareeklg)
+### Candle intervals
 
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/monupareeklg/trade-data-generator/blob/master/LICENSE) file for details.
-
----
-
-## 🛠️ Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix: `git checkout -b feature-name`.
-3. Commit your changes: `git commit -m 'Add a new feature'`.
-4. Push to the branch: `git push origin feature-name`.
-5. Submit a pull request.
-
-Make sure your code is clean and well-documented before submitting. We appreciate your contributions!
+`'1s'` `'1m'` `'5m'` `'15m'` `'1h'` `'4h'` `'1d'`
 
 ---
 
-## 🌟 Support
+## API
 
-If you like this project, please give it a ⭐️ on [GitHub](https://github.com/monupareeklg/trade-data-generator)!
+```javascript
+feed.start()                        // Start emitting ticks
+feed.stop()                         // Stop completely
+feed.pause()                        // Pause ticks (clock keeps running)
+feed.resume()                       // Resume after pause
 
-For issues, feel free to open a ticket on the [GitHub issues page](https://github.com/monupareeklg/trade-data-generator/issues).
+feed.getState(symbol)               // Current price, stats, depth, candles
+feed.getCandles(symbol, interval, limit) // Candle history
+feed.getSymbols()                   // ['BTC/USDT', 'ETH/USDT', ...]
+feed.getMarketStatus()              // { isOpen, type, timezone, ... }
 
-Need help or have questions? Contact me at **monupareeklg@gmail.com**.
+feed.reset(symbol)                  // Reset one symbol to startPrice
+feed.resetAll()                     // Reset all symbols
+feed.isRunning()                    // true | false
+```
+
+---
+
+## Examples
+
+```bash
+node examples/crypto.js    # Crypto feed — always open
+node examples/equity.js    # US stocks — market hours
+node examples/forex.js     # Forex pairs — pip precision
+```
+
+---
+
+## v2.0.0 — Complete Rewrite
+
+Version 2 is a full rewrite. The old API is not compatible.
+
+**What changed:**
+- New class name: `MarketFeed` (was `MarketDepthGenerator`)
+- EventEmitter API — no polling required
+- Accurate order book — bid always below ask
+- Correct timezone handling via `Intl` API
+- Per-symbol 24h stats — no more hardcoded globals
+- Multiple candle intervals simultaneously
+- Volume correlated with price move size
+- Mean reversion — prices don't drift to infinity
+- Zero dependencies — removed axios, redis, ws, node-fetch
+- Full input validation with clear error messages
+
+---
+
+## Author
+
+**Love Pareek** — [monupareeklg@gmail.com](mailto:monupareeklg@gmail.com)  
+GitHub: [monupareeklg](https://github.com/monupareeklg)  
+Contributor: [Kush Pareek](https://github.com/kushpareek)
+
+---
+
+## License
+
+MIT — see [LICENSE](https://github.com/monupareeklg/trade-data-generator/blob/master/LICENSE)
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a branch: `git checkout -b feature-name`
+3. Commit: `git commit -m 'Add feature'`
+4. Push: `git push origin feature-name`
+5. Open a pull request
+
+Issues and PRs welcome on [GitHub](https://github.com/monupareeklg/trade-data-generator/issues).
+
+---
+
+⭐️ If this saved you time, star it on [GitHub](https://github.com/monupareeklg/trade-data-generator)!
