@@ -4,6 +4,8 @@
 [![license](https://img.shields.io/npm/l/trade-data-generator.svg)](https://github.com/monupareeklg/trade-data-generator/blob/master/LICENSE)
 [![downloads](https://img.shields.io/npm/dm/trade-data-generator.svg)](https://www.npmjs.com/package/trade-data-generator)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](https://www.npmjs.com/package/trade-data-generator)
+[![tests](https://img.shields.io/badge/tests-167%20passed-brightgreen.svg)]()
+[![coverage](https://img.shields.io/badge/coverage-91.9%25-brightgreen.svg)]()
 
 Generate realistic real-time market data for trading UIs — equity, forex and crypto.  
 Emits price ticks, order book depth, OHLCV candles and market status events via **EventEmitter**.  

@@ -11,6 +11,10 @@
     "example:equity": "node examples/equity.js",
     "example:forex": "node examples/forex.js"
   },
+  "jest": {
+  "testEnvironment": "node",
+  "forceExit": true
+},
   "keywords": [
     "trading",
     "simulator",
@@ -45,10 +49,9 @@
   "bugs": {
     "url": "https://github.com/monupareeklg/trade-data-generator/issues"
   },
-  "homepage": "https://tradesim.dev",
-  "dependencies": {},
+  "homepage": "https://github.com/monupareeklg/trade-data-generator#readme",
   "devDependencies": {
-    "jest": "^29.4.0"
+    "jest": "^29.7.0"
   },
   "engines": {
     "node": ">=14.0.0"
