@@ -1,6 +1,6 @@
 {
   "name": "trade-data-generator",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Generate realistic real-time market data for trading UIs — equity, forex and crypto. Emits tick, candle, orderbook and market status events via EventEmitter.",
   "main": "src/index.js",
   "types": "index.d.ts",
@@ -12,9 +12,9 @@
     "example:forex": "node examples/forex.js"
   },
   "jest": {
-  "testEnvironment": "node",
-  "forceExit": true
-},
+    "testEnvironment": "node",
+    "forceExit": true
+  },
   "keywords": [
     "trading",
     "simulator",
