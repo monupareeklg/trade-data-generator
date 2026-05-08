@@ -45,7 +45,7 @@
   "bugs": {
     "url": "https://github.com/monupareeklg/trade-data-generator/issues"
   },
-  "homepage": "https://github.com/monupareeklg/trade-data-generator#readme",
+  "homepage": "https://tradesim.dev",
   "dependencies": {},
   "devDependencies": {
     "jest": "^29.4.0"
