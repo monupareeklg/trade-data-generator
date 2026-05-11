@@ -182,7 +182,8 @@ class BinanceConnector extends BaseConnector {
 
   normalizeDepth(raw) {
     // raw = Binance partial book depth stream
-    const symbol = this._binanceToStandard(raw.s ?? "");
+    // Caller injects s as an already-converted standard symbol (e.g. 'BTC/USDT')
+    const symbol = raw.s ?? "";
 
     const bids = (raw.bids ?? []).slice(0, this._depth).map((b) => ({
       price: parseFloat(b[0]),
@@ -285,19 +286,17 @@ class BinanceConnector extends BaseConnector {
     // Kline/candle stream
     if (stream.includes("@kline_")) {
       const candle = this.normalizeCandle(data);
-      // Only emit on closed candles
-      if (candle.closed) {
-        this._emitCandle(candle);
-      }
+      // Emit every update so the chart renders in real-time; candle.closed signals a finalised bar
+      this._emitCandle(candle);
       return;
     }
 
     // Depth stream
     if (stream.endsWith("@depth10") || stream.includes("@depth")) {
-      // Depth stream doesn't include symbol — extract from stream name
-      const symbol = this._binanceToStandard(
-        stream.split("@")[0].toUpperCase(),
-      );
+      // Depth stream payload has no 's' field — extract symbol from stream name
+      const rawSymbol = stream.split("@")[0].toUpperCase(); // e.g. 'BTCUSDT'
+      const symbol = this._binanceToStandard(rawSymbol);    // e.g. 'BTC/USDT'
+      console.log("[BinanceConnector] depth stream:", stream, "→ symbol:", symbol, "| bids:", data.bids?.length, "asks:", data.asks?.length);
       const depth = this.normalizeDepth({ ...data, s: symbol });
       this._emitDepth(depth);
       return;
@@ -392,6 +391,7 @@ class BinanceConnector extends BaseConnector {
    * USDT, USDC, BTC, ETH, BNB, BUSD
    */
   _binanceToStandard(symbol) {
+    if (symbol.includes('/')) return symbol
     const quotes = ["USDT", "USDC", "BUSD", "BTC", "ETH", "BNB", "TRX", "XRP"];
     for (const quote of quotes) {
       if (symbol.endsWith(quote)) {

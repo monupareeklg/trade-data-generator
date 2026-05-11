@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>trade-data-generator — Test Terminal</title>
+  <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:      #040608;
+      --surface: #0c0f14;
+      --border:  #1a1f2a;
+      --text:    #e8edf5;
+      --muted:   #5a6478;
+      --accent:  #00d4aa;
+      --red:     #f6465d;
+      --green:   #00d4aa;
+      --blue:    #0098ff;
+      --mono:    'DM Mono', monospace;
+      --sans:    'DM Sans', sans-serif;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 1rem;
+    }
+
+    .nav-logo {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .nav-pairs {
+      display: flex;
+      gap: 0.25rem;
+      flex: 1;
+      overflow-x: auto;
+    }
+
+    .pair-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.8rem;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .pair-btn:hover { border-color: var(--muted); color: var(--text); }
+    .pair-btn.active {
+      background: rgba(0,212,170,0.08);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .pair-btn .p-chg.up   { color: var(--green); font-size: 0.68rem; }
+    .pair-btn .p-chg.down { color: var(--red);   font-size: 0.68rem; }
+
+    .nav-source {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 100px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    .nav-source.simulation { background: rgba(0,212,170,0.08); border-color: rgba(0,212,170,0.3); color: var(--accent); }
+    .nav-source.binance    { background: rgba(0,152,255,0.08); border-color: rgba(0,152,255,0.3); color: var(--blue); }
+
+    .source-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .ticker {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .ticker-main { display: flex; align-items: baseline; gap: 0.75rem; }
+    .ticker-symbol { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+    .ticker-price  { font-family: var(--mono); font-size: 1.6rem; font-weight: 500; letter-spacing: -0.02em; }
+
+    .ticker-chg {
+      font-family: var(--mono); font-size: 0.8rem; font-weight: 600;
+      padding: 0.15rem 0.4rem; border-radius: 4px;
+    }
+    .ticker-chg.up   { color: var(--green); background: rgba(0,212,170,0.1); }
+    .ticker-chg.down { color: var(--red);   background: rgba(246,70,93,0.1); }
+
+    .ticker-stat { display: flex; flex-direction: column; gap: 0.1rem; }
+    .ticker-stat-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .ticker-stat-value { font-family: var(--mono); font-size: 0.8rem; }
+
+    .interval-bar {
+      display: flex; align-items: center; gap: 0.25rem;
+      padding: 0.4rem 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .int-btn {
+      padding: 0.2rem 0.6rem;
+      font-family: var(--mono); font-size: 0.72rem;
+      border-radius: 4px; cursor: pointer;
+      border: none; background: none; color: var(--muted);
+      transition: all 0.15s;
+    }
+    .int-btn:hover { color: var(--text); }
+    .int-btn.active { background: rgba(0,212,170,0.1); color: var(--accent); }
+
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 240px 220px;
+      flex: 1; min-height: 0; overflow: hidden;
+    }
+
+    .chart-wrap {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border); min-height: 0;
+    }
+
+    #chart { flex: 1; min-height: 0; }
+
+    .ob-wrap {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border); overflow: hidden;
+    }
+
+    .panel-title {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.68rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex; justify-content: space-between;
+    }
+
+    .ob-labels {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.62rem; color: var(--muted);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .ob-labels span:last-child   { text-align: right; }
+    .ob-labels span:nth-child(2) { text-align: center; }
+
+    .ob-asks {
+      flex: 1; overflow: hidden;
+      display: flex; flex-direction: column-reverse;
+    }
+
+    .ob-mid {
+      padding: 0.3rem 0.75rem;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.85rem; font-weight: 600;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .ob-mid .spread { font-size: 0.62rem; color: var(--muted); }
+
+    .ob-bids { flex: 1; overflow: hidden; }
+
+    .ob-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      padding: 0.18rem 0.75rem;
+      font-family: var(--mono); font-size: 0.7rem;
+      position: relative; cursor: default;
+    }
+    .ob-row:hover { background: rgba(255,255,255,0.02); }
+    .ob-bar { position: absolute; top: 0; right: 0; height: 100%; opacity: 0.07; }
+    .ob-bar.ask { background: var(--red); }
+    .ob-bar.bid { background: var(--green); }
+    .ob-row .p { font-weight: 500; }
+    .ob-row .s { text-align: center; color: var(--muted); }
+    .ob-row .t { text-align: right;  color: var(--muted); }
+    .ob-row.ask .p { color: var(--red); }
+    .ob-row.bid .p { color: var(--green); }
+
+    .right-wrap { display: flex; flex-direction: column; overflow: hidden; }
+
+    .trades-wrap {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; border-bottom: 1px solid var(--border);
+    }
+
+    .trade-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      padding: 0.2rem 0.75rem;
+      font-family: var(--mono); font-size: 0.68rem;
+    }
+    .trade-row .tp { font-weight: 500; }
+    .trade-row .ts { text-align: center; color: var(--muted); }
+    .trade-row .tt { text-align: right;  color: var(--muted); }
+    .trade-row.buy  .tp { color: var(--green); }
+    .trade-row.sell .tp { color: var(--red); }
+
+    .trades-list {
+      flex: 1; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    .stats-wrap { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.3rem 0; border-bottom: 1px solid var(--border); font-size: 0.75rem;
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row .sl { color: var(--muted); }
+    .stat-row .sv { font-family: var(--mono); }
+
+    .bottom {
+      height: 28px; display: flex; align-items: center;
+      padding: 0 1rem; gap: 1.5rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .bottom-item { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); display: flex; gap: 0.3rem; }
+    .bottom-item span { color: var(--text); }
+    .bottom-right { margin-left: auto; font-family: var(--mono); font-size: 0.65rem; color: var(--muted); }
+
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(4,6,8,0.9);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1rem; z-index: 100;
+      font-family: var(--mono); color: var(--muted); font-size: 0.85rem;
+    }
+    .overlay.hidden { display: none; }
+
+    .spinner {
+      width: 24px; height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+  <div class="overlay" id="overlay">
+    <div class="spinner"></div>
+    <div id="overlay-msg">Connecting to server...</div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-logo">trade-data-generator</div>
+    <div class="nav-pairs" id="pair-bar"></div>
+    <div class="nav-source simulation" id="source-badge">
+      <div class="source-dot"></div>
+      <span id="source-label">simulation</span>
+    </div>
+  </div>
+
+  <div class="ticker">
+    <div class="ticker-main">
+      <span class="ticker-symbol" id="t-symbol">—</span>
+      <span class="ticker-price"  id="t-price">—</span>
+      <span class="ticker-chg up" id="t-chg">—</span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-stat-label">24h High</span>
+      <span class="ticker-stat-value" id="t-high">—</span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-stat-label">24h Low</span>
+      <span class="ticker-stat-value" id="t-low">—</span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-stat-label">Volume</span>
+      <span class="ticker-stat-value" id="t-vol">—</span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-stat-label">Bid</span>
+      <span class="ticker-stat-value" style="color:var(--green)" id="t-bid">—</span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-stat-label">Ask</span>
+      <span class="ticker-stat-value" style="color:var(--red)" id="t-ask">—</span>
+    </div>
+    <div class="ticker-stat">
+      <span class="ticker-stat-label">Spread</span>
+      <span class="ticker-stat-value" id="t-spread">—</span>
+    </div>
+  </div>
+
+  <div class="interval-bar">
+    <button class="int-btn active" onclick="setInterval_('1m')">1m</button>
+    <button class="int-btn" onclick="setInterval_('5m')">5m</button>
+    <button class="int-btn" onclick="setInterval_('15m')">15m</button>
+    <button class="int-btn" onclick="setInterval_('1h')">1h</button>
+  </div>
+
+  <div class="main">
+    <div class="chart-wrap">
+      <div id="chart"></div>
+    </div>
+
+    <div class="ob-wrap">
+      <div class="panel-title">
+        <span>Order Book</span>
+        <span>10 levels</span>
+      </div>
+      <div class="ob-labels">
+        <span>Price</span><span>Size</span><span>Total</span>
+      </div>
+      <div class="ob-asks" id="ob-asks"></div>
+      <div class="ob-mid">
+        <span id="ob-mid-price" class="up">—</span>
+        <span class="spread" id="ob-spread">spread —</span>
+      </div>
+      <div class="ob-labels">
+        <span>Price</span><span>Size</span><span>Total</span>
+      </div>
+      <div class="ob-bids" id="ob-bids"></div>
+    </div>
+
+    <div class="right-wrap">
+      <div class="trades-wrap">
+        <div class="panel-title"><span>Recent Trades</span></div>
+        <div class="ob-labels">
+          <span>Price</span><span>Size</span><span>Time</span>
+        </div>
+        <div class="trades-list" id="trades-list"></div>
+      </div>
+
+      <div class="stats-wrap">
+        <div class="panel-title" style="padding:0 0 0.5rem;border:none;">
+          <span>Session Stats</span>
+        </div>
+        <div class="stat-row"><span class="sl">Source</span><span class="sv" id="st-source">—</span></div>
+        <div class="stat-row"><span class="sl">Symbol</span><span class="sv" id="st-symbol">—</span></div>
+        <div class="stat-row"><span class="sl">Ticks</span><span class="sv" id="st-ticks">0</span></div>
+        <div class="stat-row"><span class="sl">Candles</span><span class="sv" id="st-candles">0</span></div>
+        <div class="stat-row"><span class="sl">Depth updates</span><span class="sv" id="st-depth">0</span></div>
+        <div class="stat-row"><span class="sl">Last candle</span><span class="sv" id="st-last-candle">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="bottom-item">Type <span>Crypto</span></div>
+    <div class="bottom-item">Status <span style="color:var(--green)">Live</span></div>
+    <div class="bottom-item">Interval <span id="bot-interval">1m</span></div>
+    <div class="bottom-item">Ticks <span id="bot-ticks">0</span></div>
+    <div class="bottom-right">trade-data-generator test terminal</div>
+  </div>
+
+<script>
+const socket    = io()
+let currentPair = null
+let currentInt  = '1m'
+let chart       = null
+let candleSeries= null
+let trades      = []
+let tickCount   = 0, candleCount = 0, depthCount = 0
+
+const fmt = (v, p = 2) => {
+  if (v == null) return '—'
+  return parseFloat(v).toLocaleString('en-US', {
+    minimumFractionDigits: p, maximumFractionDigits: p
+  })
+}
+
+const fmtTime = (ts) =>
+  new Date(ts).toLocaleTimeString('en-US', {
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+  })
+
+const getP = (sym) => {
+  if (!sym) return 2
+  if (sym.includes('JPY')) return 3
+  if (sym.includes('EUR') || sym.includes('GBP')) return 5
+  if (sym.includes('SOL') || sym.includes('XRP')) return 3
+  return 2
+}
+
+function initChart() {
+  const el = document.getElementById('chart')
+  if (chart) { chart.remove(); chart = null }
+  chart = LightweightCharts.createChart(el, {
+    layout:  { background: { color: '#040608' }, textColor: '#5a6478' },
+    grid:    { vertLines: { color: '#0d1117' }, horzLines: { color: '#0d1117' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#1a1f2a' },
+    timeScale: { borderColor: '#1a1f2a', timeVisible: true, secondsVisible: false },
+    width: el.clientWidth, height: el.clientHeight,
+  })
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#00d4aa', downColor: '#f6465d',
+    borderUpColor: '#00d4aa', borderDownColor: '#f6465d',
+    wickUpColor: '#00d4aa', wickDownColor: '#f6465d',
+  })
+  window.addEventListener('resize', () => {
+    if (chart) chart.applyOptions({ width: el.clientWidth, height: el.clientHeight })
+  })
+}
+
+function buildPairBar(pairs) {
+  const bar = document.getElementById('pair-bar')
+  bar.innerHTML = ''
+  pairs.forEach(sym => {
+    const btn = document.createElement('button')
+    btn.className = 'pair-btn' + (sym === currentPair ? ' active' : '')
+    btn.id = `pair-${sym.replace('/', '-')}`
+    btn.innerHTML = `
+      <span>${sym}</span>
+      <span id="pp-${sym.replace('/', '-')}">—</span>
+      <span class="p-chg up" id="pc-${sym.replace('/', '-')}">—</span>
+    `
+    btn.onclick = () => switchPair(sym)
+    bar.appendChild(btn)
+  })
+}
+
+function updatePairTab(sym, price, changePct) {
+  const p   = getP(sym)
+  const key = sym.replace('/', '-')
+  const pEl = document.getElementById(`pp-${key}`)
+  const cEl = document.getElementById(`pc-${key}`)
+  if (pEl) pEl.textContent = fmt(price, p)
+  if (cEl) {
+    cEl.textContent = (changePct >= 0 ? '+' : '') + changePct?.toFixed(2) + '%'
+    cEl.className   = 'p-chg ' + (changePct >= 0 ? 'up' : 'down')
+  }
+}
+
+function switchPair(sym) {
+  currentPair = sym
+  tickCount = candleCount = depthCount = 0
+  trades = []
+  document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'))
+  const tab = document.getElementById(`pair-${sym.replace('/', '-')}`)
+  if (tab) tab.classList.add('active')
+  document.getElementById('st-symbol').textContent = sym
+  document.getElementById('t-symbol').textContent  = sym
+  document.getElementById('trades-list').innerHTML  = ''
+  document.getElementById('ob-asks').innerHTML      = ''
+  document.getElementById('ob-bids').innerHTML      = ''
+  candleSeries?.setData([])
+  socket.emit('subscribe', { symbol: sym })
+}
+
+function setInterval_(int) {
+  currentInt = int
+  document.getElementById('bot-interval').textContent = int
+  document.querySelectorAll('.int-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === int)
+  })
+  candleSeries?.setData([])
+}
+
+function updateTicker(data) {
+  const p  = getP(data.symbol)
+  const up = data.changePct >= 0
+  document.getElementById('t-price').textContent  = fmt(data.price,   p)
+  document.getElementById('t-high').textContent   = fmt(data.high24h, p)
+  document.getElementById('t-low').textContent    = fmt(data.low24h,  p)
+  document.getElementById('t-vol').textContent    = fmt(data.volume,  2)
+  document.getElementById('t-bid').textContent    = fmt(data.bid,     p)
+  document.getElementById('t-ask').textContent    = fmt(data.ask,     p)
+  document.getElementById('t-spread').textContent = fmt(data.spread,  p)
+  const chgEl = document.getElementById('t-chg')
+  chgEl.textContent = (up ? '+' : '') + (data.changePct?.toFixed(2) ?? '0.00') + '%'
+  chgEl.className   = 'ticker-chg ' + (up ? 'up' : 'down')
+  const midEl = document.getElementById('ob-mid-price')
+  midEl.textContent = fmt(data.price, p)
+  midEl.className   = up ? 'up' : 'down'
+
+  tickCount++
+  document.getElementById('st-ticks').textContent  = tickCount.toLocaleString()
+  document.getElementById('bot-ticks').textContent = tickCount.toLocaleString()
+
+  const side = data.price >= (data.previous ?? data.price) ? 'buy' : 'sell'
+  const tradeVol = data.source === 'binance'
+    ? (Math.random() * 2).toFixed(4)
+    : data.volume
+  trades.unshift({ price: data.price, volume: tradeVol, side, time: Date.now() })
+  if (trades.length > 30) trades.pop()
+  renderTrades(p)
+}
+
+function renderTrades(p) {
+  const list = document.getElementById('trades-list')
+  list.innerHTML = ''
+  trades.forEach(t => {
+    const row = document.createElement('div')
+    row.className = `trade-row ${t.side}`
+    row.innerHTML = `
+      <span class="tp">${fmt(t.price, p)}</span>
+      <span class="ts">${fmt(t.volume, 4)}</span>
+      <span class="tt">${fmtTime(t.time)}</span>
+    `
+    list.appendChild(row)
+  })
+}
+
+function renderOrderBook(data) {
+  const p      = getP(data.symbol)
+  const asks   = data.asks ?? []
+  const bids   = data.bids ?? []
+  const maxVol = Math.max(...bids.map(b=>b.volume), ...asks.map(a=>a.volume), 1)
+
+  const asksEl = document.getElementById('ob-asks')
+  const bidsEl = document.getElementById('ob-bids')
+
+  asksEl.innerHTML = ''
+  ;[...asks].reverse().forEach(a => {
+    const pct = (a.volume / maxVol * 100).toFixed(0)
+    const row = document.createElement('div')
+    row.className = 'ob-row ask'
+    row.innerHTML = `
+      <div class="ob-bar ask" style="width:${pct}%"></div>
+      <span class="p">${fmt(a.price, p)}</span>
+      <span class="s">${fmt(a.volume, 4)}</span>
+      <span class="t">${fmt(a.price * a.volume, 0)}</span>
+    `
+    asksEl.appendChild(row)
+  })
+
+  bidsEl.innerHTML = ''
+  bids.forEach(b => {
+    const pct = (b.volume / maxVol * 100).toFixed(0)
+    const row = document.createElement('div')
+    row.className = 'ob-row bid'
+    row.innerHTML = `
+      <div class="ob-bar bid" style="width:${pct}%"></div>
+      <span class="p">${fmt(b.price, p)}</span>
+      <span class="s">${fmt(b.volume, 4)}</span>
+      <span class="t">${fmt(b.price * b.volume, 0)}</span>
+    `
+    bidsEl.appendChild(row)
+  })
+
+  if (asks.length && bids.length) {
+    document.getElementById('ob-spread').textContent =
+      `spread ${fmt(asks[0].price - bids[0].price, p)}`
+  }
+
+  depthCount++
+  document.getElementById('st-depth').textContent = depthCount.toLocaleString()
+}
+
+// ── Socket ─────────────────────────────── //
+socket.on('connect', () => {
+  document.getElementById('overlay-msg').textContent = 'Connected — waiting for config...'
+})
+
+socket.on('config', (cfg) => {
+  const source = cfg.source
+  const badge  = document.getElementById('source-badge')
+  badge.className = `nav-source ${source}`
+  document.getElementById('source-label').textContent = source
+  document.getElementById('st-source').textContent    = source
+  buildPairBar(cfg.pairs)
+  if (cfg.pairs.length > 0) switchPair(cfg.pairs[0])
+  document.getElementById('overlay').classList.add('hidden')
+})
+
+socket.on('snapshot', (state) => {
+  if (!state) return
+  if (state.candles?.[currentInt]?.length > 0) {
+    candleSeries?.setData(state.candles[currentInt].map(c => ({
+      time: c.time ?? Math.floor(c.openTime / 1000),
+      open: c.open, high: c.high, low: c.low, close: c.close,
+    })))
+  }
+})
+
+socket.on('tick', (data) => {
+  updatePairTab(data.symbol, data.price, data.changePct)
+  if (data.symbol !== currentPair) return
+  updateTicker(data)
+})
+
+socket.on('mini_tick', (data) => {
+  updatePairTab(data.symbol, data.price, data.changePct)
+})
+
+socket.on('candle', (data) => {
+  if (data.symbol !== currentPair || data.interval !== currentInt) return
+  console.log('[candle] openTime raw:', data.openTime, '→ seconds:', Math.floor(data.openTime / 1000))
+  candleSeries?.update({
+    time: Math.floor(data.openTime / 1000),
+    open: data.open, high: data.high, low: data.low, close: data.close,
+  })
+  if (data.closed) {
+    candleCount++
+    document.getElementById('st-candles').textContent     = candleCount
+    document.getElementById('st-last-candle').textContent =
+      `O:${data.open} H:${data.high} L:${data.low} C:${data.close}`
+  }
+})
+
+socket.on('depth', (data) => {
+  if (data.symbol !== currentPair) return
+  renderOrderBook(data)
+})
+
+socket.on('disconnect', () => {
+  document.getElementById('overlay').classList.remove('hidden')
+  document.getElementById('overlay-msg').textContent = 'Disconnected — reconnecting...'
+})
+
+initChart()
+</script>
+</body>
+</html>

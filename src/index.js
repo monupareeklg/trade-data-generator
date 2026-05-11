@@ -31,13 +31,18 @@
  *   feed.start()
  */
 
-'use strict'
+"use strict";
 
-const EventEmitter = require('events')
+const EventEmitter = require("events");
 
-const { validateConfig }      = require('./utils/validate')
-const { DEFAULTS }            = require('./constants/defaults')
-const { getConnector }        = require('./connectors/index')
+const { validateConfig } = require("./utils/validate");
+const { DEFAULTS } = require("./constants/defaults");
+const { getConnector } = require("./connectors/index");
+const {
+  registerConnector,
+  getAvailableSources,
+} = require("./connectors/index");
+const { BaseConnector } = require("./connectors/base");
 
 class MarketFeed extends EventEmitter {
   /**
@@ -52,17 +57,17 @@ class MarketFeed extends EventEmitter {
    * @param {Object}   config.marketHours     - Required for equity/forex
    */
   constructor(config) {
-    super()
+    super();
 
     // Validate before anything else
-    validateConfig(config)
+    validateConfig(config);
 
-    this._config   = config
-    this._source   = config.source ?? 'simulation'
-    this._running  = false
+    this._config = config;
+    this._source = config.source ?? "simulation";
+    this._running = false;
 
     // ── Get connector class from registry ── //
-    const ConnectorClass = getConnector(this._source)
+    const ConnectorClass = getConnector(this._source);
 
     // ── Initialize connector ──────────────── //
     this._connector = new ConnectorClass({
@@ -70,13 +75,13 @@ class MarketFeed extends EventEmitter {
       ...config,
 
       // Wire connector callbacks to EventEmitter
-      onTick:   (data) => this.emit('tick',   data),
-      onCandle: (data) => this.emit('candle', data),
-      onDepth:  (data) => this.emit('depth',  data),
-      onOpen:   (info) => this.emit('open',   info),
-      onClose:  (info) => this.emit('closed', info),
-      onError:  (err)  => this.emit('error',  err),
-    })
+      onTick: (data) => this.emit("tick", data),
+      onCandle: (data) => this.emit("candle", data),
+      onDepth: (data) => this.emit("depth", data),
+      onOpen: (info) => this.emit("open", info),
+      onClose: (info) => this.emit("closed", info),
+      onError: (err) => this.emit("error", err),
+    });
   }
 
   // ── Public API ─────────────────────────── //
@@ -88,24 +93,24 @@ class MarketFeed extends EventEmitter {
    */
   async start() {
     if (this._running) {
-      console.warn('[MarketFeed] Already running. Call stop() first.')
-      return this
+      console.warn("[MarketFeed] Already running. Call stop() first.");
+      return this;
     }
 
-    this._running = true
-    await this._connector.connect()
-    return this
+    this._running = true;
+    await this._connector.connect();
+    return this;
   }
 
   /**
    * Stop the feed completely
    */
   async stop() {
-    if (!this._running) return this
+    if (!this._running) return this;
 
-    this._running = false
-    await this._connector.disconnect()
-    return this
+    this._running = false;
+    await this._connector.disconnect();
+    return this;
   }
 
   /**
@@ -114,11 +119,11 @@ class MarketFeed extends EventEmitter {
    */
   pause() {
     if (!this._running) {
-      console.warn('[MarketFeed] Not running. Call start() first.')
-      return this
+      console.warn("[MarketFeed] Not running. Call start() first.");
+      return this;
     }
-    if (this._connector.pause) this._connector.pause()
-    return this
+    if (this._connector.pause) this._connector.pause();
+    return this;
   }
 
   /**
@@ -126,11 +131,11 @@ class MarketFeed extends EventEmitter {
    */
   resume() {
     if (!this._running) {
-      console.warn('[MarketFeed] Not running. Call start() first.')
-      return this
+      console.warn("[MarketFeed] Not running. Call start() first.");
+      return this;
     }
-    if (this._connector.resume) this._connector.resume()
-    return this
+    if (this._connector.resume) this._connector.resume();
+    return this;
   }
 
   /**
@@ -139,7 +144,7 @@ class MarketFeed extends EventEmitter {
    * @returns {Object|null}
    */
   getState(symbol) {
-    return this._connector.getState(symbol)
+    return this._connector.getState(symbol);
   }
 
   /**
@@ -154,11 +159,11 @@ class MarketFeed extends EventEmitter {
    */
   getCandles(symbol, interval, limit) {
     if (this._connector.getCandles) {
-      return this._connector.getCandles(symbol, interval, limit)
+      return this._connector.getCandles(symbol, interval, limit);
     }
     // Simulation connector has CandleManager
     // Live connectors track candles differently
-    return []
+    return [];
   }
 
   /**
@@ -167,8 +172,8 @@ class MarketFeed extends EventEmitter {
    * @param {string} symbol
    */
   reset(symbol) {
-    this._connector.reset(symbol)
-    return this
+    this._connector.reset(symbol);
+    return this;
   }
 
   /**
@@ -176,8 +181,8 @@ class MarketFeed extends EventEmitter {
    * Simulation only
    */
   resetAll() {
-    this._connector.resetAll()
-    return this
+    this._connector.resetAll();
+    return this;
   }
 
   /**
@@ -186,9 +191,9 @@ class MarketFeed extends EventEmitter {
    */
   getSymbols() {
     if (this._connector.getSymbols) {
-      return this._connector.getSymbols()
+      return this._connector.getSymbols();
     }
-    return this._config.pairs.map(p => p.symbol)
+    return this._config.pairs.map((p) => p.symbol);
   }
 
   /**
@@ -196,7 +201,7 @@ class MarketFeed extends EventEmitter {
    * @returns {boolean}
    */
   isRunning() {
-    return this._running
+    return this._running;
   }
 
   /**
@@ -205,14 +210,14 @@ class MarketFeed extends EventEmitter {
    */
   getMarketStatus() {
     if (this._connector.getMarketStatus) {
-      return this._connector.getMarketStatus()
+      return this._connector.getMarketStatus();
     }
     return {
-      isOpen:  true,
-      type:    this._config.type,
-      source:  this._source,
-      reason:  'Live connector — always open',
-    }
+      isOpen: true,
+      type: this._config.type,
+      source: this._source,
+      reason: "Live connector — always open",
+    };
   }
 
   /**
@@ -220,8 +225,13 @@ class MarketFeed extends EventEmitter {
    * @returns {string}
    */
   getSource() {
-    return this._source
+    return this._source;
   }
 }
 
-module.exports = { MarketFeed }
+module.exports = {
+  MarketFeed,
+  BaseConnector,
+  registerConnector,
+  getAvailableSources,
+};
