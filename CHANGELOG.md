@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [3.0.0] — 2026-05-11
+
+### Added
+- Connector architecture — pluggable data sources
+- `source` config option — `'simulation'` | `'binance'`
+- `BinanceConnector` — real-time Binance WebSocket data
+  No API key required for public market data
+- `SimulationConnector` — wraps existing engine
+- `BaseConnector` — abstract base for custom connectors
+- `registerConnector()` — community can add own connectors
+- `getAvailableSources()` — list available sources
+
+### Breaking changes
+- None — fully backward compatible
+  Existing code with no `source` option
+  continues to work exactly as before
+
+### Migration
+```javascript
+// Before (still works)
+const feed = new MarketFeed({
+  type:  'crypto',
+  pairs: [{ symbol: 'BTC/USDT', startPrice: 45000 }]
+})
+
+// New — switch to real Binance data
+const feed = new MarketFeed({
+  source: 'binance',
+  type:   'crypto',
+  pairs:  [{ symbol: 'BTC/USDT' }]
+})
+```
+
 ## [2.0.0] — 2026-05-08
 
 ### ⚠️ Breaking Changes
